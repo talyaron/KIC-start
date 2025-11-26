@@ -1,4 +1,7 @@
 # KIC-start
 
 My amazing app
+itay svsyhv
+dan 
+hagver
 Dan bensasson
