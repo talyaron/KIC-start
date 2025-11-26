@@ -2,9 +2,10 @@
 
 My amazing app
 itay svsyhv
-dan
+dan 
 hagver
 lavi
+segev
+
 
 yehonatan naveh
-Harel
