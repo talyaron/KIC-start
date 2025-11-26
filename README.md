@@ -1,13 +1,9 @@
 # KIC-start
 
 My amazing app
-<<<<<<< Updated upstream
 itay svsyhv
-dan 
+dan
 hagver
 lavi
-=======
-
 
 yehonatan naveh
->>>>>>> Stashed changes
