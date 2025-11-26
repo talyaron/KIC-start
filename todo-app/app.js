@@ -109,6 +109,8 @@ class TaskManager {
     // Show/hide empty state
     if (this.tasks.length === 0) {
       this.emptyState.style.display = "block";
+      // Clear the task list to remove any lingering tasks from the DOM
+      this.tasksList.innerHTML = '<li class="empty-state" id="emptyState"><div class="empty-state-icon" aria-hidden="true">📝</div><p>No tasks yet. Add one to get started!</p></li>';
       return;
     } else {
       this.emptyState.style.display = "none";
