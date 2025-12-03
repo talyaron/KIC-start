@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collaborative Paint</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <div class="tool-group">
+                <label>Color</label>
+                <input type="color" id="colorPicker" value="#000000">
+            </div>
+            <div class="tool-group">
+                <label>Size</label>
+                <input type="range" id="sizeSlider" min="1" max="20" value="5">
+                <span id="sizeValue">5px</span>
+            </div>
+            <div class="tool-group">
+                <button id="clearBtn" class="btn-secondary">Clear Local</button>
+            </div>
+            <div class="tool-group spacer"></div>
+            <div class="tool-group">
+                <div id="connectionStatus" class="status-indicator disconnected">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Offline</span>
+                </div>
+                <button id="configBtn" class="btn-icon" title="Settings">⚙️</button>
+            </div>
+        </div>
+
+        <!-- Canvas Container -->
+        <div class="canvas-wrapper" id="canvasWrapper">
+            <canvas id="drawingCanvas"></canvas>
+        </div>
+    </div>
+
+    <!-- Configuration Modal -->
+    <div id="configModal" class="modal-overlay active">
+        <div class="modal-content">
+            <h2>Firebase Configuration</h2>
+            <p>To enable collaboration, please paste your Firebase configuration object below.</p>
+            <p class="subtext">You can find this in your Firebase Console > Project Settings > General > Your Apps.</p>
+
+            <textarea id="firebaseConfigInput" placeholder='{
+  "apiKey": "...",
+  "authDomain": "...",
+  "projectId": "...",
+  "storageBucket": "...",
+  "messagingSenderId": "...",
+  "appId": "..."
+}'></textarea>
+
+            <div class="modal-actions">
+                <button id="saveConfigBtn" class="btn-primary">Connect</button>
+                <button id="closeConfigBtn" class="btn-secondary">Work Offline</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs (Compat for easier CDN usage without build step) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

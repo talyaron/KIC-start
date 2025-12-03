@@ -21,6 +21,9 @@ class TaskManager {
 
     // Render initial tasks
     this.render();
+
+    // Attach event listeners to the list once
+    this.attachTaskListeners();
   }
 
   loadTasks() {
@@ -122,13 +125,12 @@ class TaskManager {
       .join("");
 
     // Attach event listeners to newly created elements
-    this.attachTaskListeners();
+    // this.attachTaskListeners(); // REMOVED: Moved to init() to prevent duplicates
   }
 
   createTaskHTML(task) {
     return `
-      <li class="task-item ${
-        task.completed ? "completed" : ""
+      <li class="task-item ${task.completed ? "completed" : ""
       }" data-task-id="${task.id}" role="listitem">
         <input 
           type="checkbox" 
@@ -137,13 +139,12 @@ class TaskManager {
           data-action="toggle"
           data-id="${task.id}"
           id="task-${task.id}"
-          aria-label="Mark task as ${
-            task.completed ? "incomplete" : "complete"
-          }"
+          aria-label="Mark task as ${task.completed ? "incomplete" : "complete"
+      }"
         >
         <label for="task-${task.id}" class="task-text">${this.escapeHtml(
-      task.text
-    )}</label>
+        task.text
+      )}</label>
         <button 
           class="btn-delete" 
           data-action="delete"

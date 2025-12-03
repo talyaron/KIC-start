@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Newton's Laws of Motion</title>
+    <link rel="stylesheet" href="style.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Exo+2:wght@300;400;600&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <header class="main-header">
+        <div class="container">
+            <h1>Newton's Laws of Motion</h1>
+            <p class="subtitle">An Interactive Physics Journey</p>
+        </div>
+    </header>
+
+    <main>
+        <!-- Law 1: Inertia -->
+        <section id="law1" class="law-section">
+            <div class="container grid-layout">
+                <div class="text-content">
+                    <h2>Law 1: The Law of Inertia</h2>
+                    <p class="law-definition">"An object at rest stays at rest and an object in motion stays in motion
+                        with the same speed and in the same direction unless acted upon by an unbalanced force."</p>
+                    <p class="explanation">
+                        In the vacuum of space, there is no friction. If you push an object, it will drift forever at a
+                        constant speed.
+                        This resistance to changes in motion is called <strong>Inertia</strong>.
+                    </p>
+                    <div class="controls-area">
+                        <h3>Simulation Controls</h3>
+                        <p>Give the ship a push to see it drift indefinitely.</p>
+                        <button id="btn-inertia-push" class="btn-action">Apply Thrust</button>
+                        <button id="btn-inertia-reset" class="btn-secondary">Reset</button>
+                    </div>
+                </div>
+                <div class="sim-content">
+                    <canvas id="canvas-inertia"></canvas>
+                    <div class="sim-overlay">
+                        <div class="stat">Velocity: <span id="val-inertia-vel">0.0</span> m/s</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Law 2: F=ma -->
+        <section id="law2" class="law-section alt-bg">
+            <div class="container grid-layout">
+                <div class="text-content">
+                    <h2>Law 2: The Law of Force</h2>
+                    <p class="law-definition">"The acceleration of an object as produced by a net force is directly
+                        proportional to the magnitude of the net force, in the same direction as the net force, and
+                        inversely proportional to the mass of the object."</p>
+                    <div class="equation">$$ F = m \times a $$</div>
+                    <p class="explanation">
+                        This means that heavier objects require more force to move (accelerate) than lighter ones.
+                        Conversely, applying more force results in greater acceleration.
+                    </p>
+                    <div class="controls-area">
+                        <h3>Simulation Controls</h3>
+                        <p>Adjust the thruster power to race the ships.</p>
+                        <div class="slider-group">
+                            <label>Thruster Force: <span id="val-force-display">0</span> N</label>
+                            <input type="range" id="slider-force" min="0" max="100" value="0">
+                        </div>
+                        <div class="legend">
+                            <div class="legend-item"><span class="dot light"></span> Light Ship (1000kg)</div>
+                            <div class="legend-item"><span class="dot heavy"></span> Heavy Ship (5000kg)</div>
+                        </div>
+                        <button id="btn-force-reset" class="btn-secondary">Reset Race</button>
+                    </div>
+                </div>
+                <div class="sim-content">
+                    <canvas id="canvas-force"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Law 3: Action-Reaction -->
+        <section id="law3" class="law-section">
+            <div class="container grid-layout">
+                <div class="text-content">
+                    <h2>Law 3: Action & Reaction</h2>
+                    <p class="law-definition">"For every action, there is an equal and opposite reaction."</p>
+                    <p class="explanation">
+                        Forces always come in pairs. When a rocket pushes fuel out the back (Action), the fuel pushes
+                        the rocket forward (Reaction).
+                        This principle is how all propulsion in space works.
+                    </p>
+                    <div class="controls-area">
+                        <h3>Simulation Controls</h3>
+                        <p>Eject fuel to propel the probe to the target.</p>
+                        <button id="btn-action-eject" class="btn-action">Eject Fuel (Action)</button>
+                        <button id="btn-action-reset" class="btn-secondary">Reset</button>
+                    </div>
+                </div>
+                <div class="sim-content">
+                    <canvas id="canvas-action"></canvas>
+                    <div class="sim-overlay">
+                        <div class="stat">Momentum: Conserved</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>Interactive Physics Portal &copy; 2025</p>
+        </div>
+    </footer>
+
+    <script src="game.js"></script>
+</body>
+
+</html>
