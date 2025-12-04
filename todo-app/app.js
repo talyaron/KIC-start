@@ -1,95 +1,140 @@
-// Task Manager Application
+// Import Firebase modules
+import { db } from './firebase-config.js';
+import { 
+  collection, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  onSnapshot,
+  query,
+  orderBy,
+  Timestamp 
+} from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
+
+
+// Task Manager Application with Firebase Firestore
 class TaskManager {
   constructor() {
-    this.tasks = this.loadTasks();
+    console.log('🚀 TaskManager constructor called');
+    this.tasks = [];
     this.taskInput = document.getElementById("taskInput");
     this.addTaskBtn = document.getElementById("addTaskBtn");
     this.tasksList = document.getElementById("tasksList");
     this.emptyState = document.getElementById("emptyState");
     this.activeCount = document.getElementById("activeCount");
     this.totalCount = document.getElementById("totalCount");
+    this.tasksCollection = collection(db, "tasks");
+    this.unsubscribe = null;
+    console.log('📦 Database collection initialized:', this.tasksCollection);
 
     this.init();
   }
 
   init() {
+    console.log('⚙️ Initializing TaskManager');
     // Event listeners
-    this.addTaskBtn.addEventListener("click", () => this.addTask());
+    this.addTaskBtn.addEventListener("click", () => {
+      console.log('🖱️ Add button clicked');
+      this.addTask();
+    });
     this.taskInput.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") this.addTask();
+      if (e.key === "Enter") {
+        console.log('⌨️ Enter key pressed');
+        this.addTask();
+      }
     });
 
-    // Render initial tasks
-    this.render();
+    // Set up real-time listener for tasks
+    this.setupRealtimeListener();
   }
 
-  loadTasks() {
-    try {
-      const stored = localStorage.getItem("taskflow-tasks");
-      return stored ? JSON.parse(stored) : [];
-    } catch (error) {
-      console.error("Error loading tasks:", error);
-      return [];
-    }
+  setupRealtimeListener() {
+    // Query tasks ordered by creation date (newest first)
+    const q = query(this.tasksCollection, orderBy("createdAt", "desc"));
+    
+    // Listen for real-time updates
+    this.unsubscribe = onSnapshot(q, (snapshot) => {
+      this.tasks = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      this.render();
+    }, (error) => {
+      console.error("Error fetching tasks:", error);
+    });
   }
 
-  saveTasks() {
-    try {
-      localStorage.setItem("taskflow-tasks", JSON.stringify(this.tasks));
-    } catch (error) {
-      console.error("Error saving tasks:", error);
-    }
-  }
-
-  addTask() {
+  async addTask() {
+    console.log('➕ addTask called');
     const text = this.taskInput.value.trim();
+    console.log('📝 Task text:', text);
 
     if (!text) {
+      console.log('⚠️ No text entered, focusing input');
       this.taskInput.focus();
       return;
     }
 
     const task = {
-      id: Date.now(),
       text: text,
       completed: false,
-      createdAt: new Date().toISOString(),
+      createdAt: Timestamp.now(),
     };
 
-    this.tasks.unshift(task);
-    this.saveTasks();
-    this.render();
+    try {
+      console.log('💾 Attempting to add task to Firestore:', task);
+      // Add task to Firestore
+      const docRef = await addDoc(this.tasksCollection, task);
+      console.log('✅ Task added successfully with ID:', docRef.id);
 
-    // Clear input and focus
-    this.taskInput.value = "";
-    this.taskInput.focus();
+      // Clear input and focus
+      this.taskInput.value = "";
+      this.taskInput.focus();
 
-    // Add micro-animation feedback
-    this.addTaskBtn.style.transform = "scale(0.95)";
-    setTimeout(() => {
-      this.addTaskBtn.style.transform = "";
-    }, 100);
-  }
-
-  toggleTask(id) {
-    const task = this.tasks.find((t) => t.id === id);
-    if (task) {
-      task.completed = !task.completed;
-      this.saveTasks();
-      this.render();
+      // Add micro-animation feedback
+      this.addTaskBtn.style.transform = "scale(0.95)";
+      setTimeout(() => {
+        this.addTaskBtn.style.transform = "";
+      }, 100);
+    } catch (error) {
+      console.error("❌ Error adding task:", error);
+      console.error("Error details:", error.message, error.code);
+      alert("Failed to add task. Please try again. Error: " + error.message);
     }
   }
 
-  deleteTask(id) {
+  async toggleTask(id) {
+    const task = this.tasks.find((t) => t.id === id);
+    if (task) {
+      try {
+        const taskRef = doc(db, "tasks", id);
+        await updateDoc(taskRef, {
+          completed: !task.completed
+        });
+      } catch (error) {
+        console.error("Error toggling task:", error);
+        alert("Failed to update task. Please try again.");
+      }
+    }
+  }
+
+  async deleteTask(id) {
     // Add fade out animation before removing
     const taskElement = document.querySelector(`[data-task-id="${id}"]`);
     if (taskElement) {
       taskElement.style.animation = "taskDisappear 0.3s ease-out";
 
-      setTimeout(() => {
-        this.tasks = this.tasks.filter((t) => t.id !== id);
-        this.saveTasks();
-        this.render();
+      setTimeout(async () => {
+        try {
+          const taskRef = doc(db, "tasks", id);
+          await deleteDoc(taskRef);
+        } catch (error) {
+          console.error("Error deleting task:", error);
+          alert("Failed to delete task. Please try again.");
+          // Revert animation if deletion fails
+          taskElement.style.animation = "";
+        }
       }, 300);
     }
   }
@@ -160,7 +205,7 @@ class TaskManager {
     // Use event delegation for better performance
     this.tasksList.addEventListener("click", (e) => {
       const action = e.target.dataset.action;
-      const id = parseInt(e.target.dataset.id);
+      const id = e.target.dataset.id;
 
       if (action === "toggle") {
         this.toggleTask(id);
@@ -174,6 +219,13 @@ class TaskManager {
     const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  // Cleanup method to unsubscribe from Firestore listener
+  destroy() {
+    if (this.unsubscribe) {
+      this.unsubscribe();
+    }
   }
 }
 
