@@ -45,8 +45,16 @@ class TaskManager {
       }
     });
 
+<<<<<<< Updated upstream
     // Set up real-time listener for tasks
     this.setupRealtimeListener();
+=======
+    // Attach task list listeners once
+    this.attachTaskListeners();
+
+    // Render initial tasks
+    this.render();
+>>>>>>> Stashed changes
   }
 
   setupRealtimeListener() {
@@ -165,9 +173,12 @@ class TaskManager {
     this.tasksList.innerHTML = this.tasks
       .map((task) => this.createTaskHTML(task))
       .join("");
+<<<<<<< Updated upstream
 
     // Attach event listeners to newly created elements
     // this.attachTaskListeners(); // REMOVED: Moved to init() to prevent duplicates
+=======
+>>>>>>> Stashed changes
   }
 
   createTaskHTML(task) {
