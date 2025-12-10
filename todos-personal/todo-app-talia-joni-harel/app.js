@@ -8,7 +8,6 @@ import {
   doc, 
   onSnapshot,
   query,
-  orderBy,
   where,
   Timestamp 
 } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
@@ -73,11 +72,12 @@ class TaskManager {
   }
 
   setupRealtimeListener() {
-    // Query tasks for current user only, ordered by creation date (newest first)
+    // Query tasks for current user only
+    // Note: We filter by userId only to avoid needing a Firestore composite index
+    // Sorting is done client-side in JavaScript instead
     const q = query(
       this.tasksCollection, 
-      where("userId", "==", this.user.uid),
-      orderBy("createdAt", "desc")
+      where("userId", "==", this.user.uid)
     );
     
     console.log('📡 Setting up real-time listener for user:', this.user.uid);
@@ -88,10 +88,20 @@ class TaskManager {
         id: doc.id,
         ...doc.data()
       }));
+      
+      // Sort tasks by creation date (newest first) - done client-side
+      this.tasks.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis() || 0;
+        const timeB = b.createdAt?.toMillis() || 0;
+        return timeB - timeA; // Descending order (newest first)
+      });
+      
       console.log('📋 Tasks loaded:', this.tasks.length);
       this.render();
     }, (error) => {
       console.error("Error fetching tasks:", error);
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
     });
   }
 
