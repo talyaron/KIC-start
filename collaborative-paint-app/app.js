@@ -3,18 +3,42 @@
 // --- State ---
 const state = {
     isDrawing: false,
+    currentTool: 'brush', // 'brush' or 'eraser'
     color: '#000000',
     size: 5,
     lastX: 0,
     lastY: 0,
-    db: null, // Firestore instance
-    unsubscribe: null // Listener unsubscriber
+    db: null,
+    unsubscribe: null,
+    myStrokeIds: [], // Stack of document IDs created by this user
+    undoneStrokes: [] // Stack of stroke data for redo
 };
 
+<<<<<<< Updated upstream
 // --- DOM Elements (initialized after DOM loads) ---
 let canvas, ctx, wrapper, colorPicker, sizeSlider, sizeValue;
 let clearBtn, configBtn, configModal, saveConfigBtn, closeConfigBtn;
 let firebaseConfigInput, connectionStatus, statusText;
+=======
+// --- DOM Elements ---
+const canvas = document.getElementById('drawingCanvas');
+const ctx = canvas.getContext('2d');
+const wrapper = document.getElementById('canvasWrapper');
+const colorPicker = document.getElementById('colorPicker');
+const sizeSlider = document.getElementById('sizeSlider');
+const sizeValue = document.getElementById('sizeValue');
+const clearBtn = document.getElementById('clearBtn');
+const brushBtn = document.getElementById('brushBtn');
+const eraserBtn = document.getElementById('eraserBtn');
+const undoBtn = document.getElementById('undoBtn');
+const redoBtn = document.getElementById('redoBtn');
+const configBtn = document.getElementById('configBtn');
+const configModal = document.getElementById('configModal');
+const saveConfigBtn = document.getElementById('saveConfigBtn');
+const closeConfigBtn = document.getElementById('closeConfigBtn');
+const firebaseConfigInput = document.getElementById('firebaseConfigInput');
+const connectionStatus = document.getElementById('connectionStatus');
+>>>>>>> Stashed changes
 
 // --- Configuration ---
 const firebaseConfig = {
@@ -78,9 +102,13 @@ function draw(e) {
 
     const [x, y] = getCoordinates(e);
 
+    // Determine style based on tool
+    const strokeColor = state.currentTool === 'eraser' ? '#ffffff' : state.color;
+    const strokeSize = state.size;
+
     // Draw locally
-    ctx.strokeStyle = state.color;
-    ctx.lineWidth = state.size;
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = strokeSize;
     ctx.beginPath();
     ctx.moveTo(state.lastX, state.lastY);
     ctx.lineTo(x, y);
@@ -93,8 +121,9 @@ function draw(e) {
             y0: state.lastY,
             x1: x,
             y1: y,
-            color: state.color,
-            size: state.size
+            color: strokeColor,
+            size: strokeSize,
+            tool: state.currentTool
         });
     }
 
@@ -140,11 +169,9 @@ function updateStatus(connected) {
     if (connected) {
         connectionStatus.classList.add('connected');
         connectionStatus.classList.remove('disconnected');
-        statusText.textContent = "Online";
     } else {
         connectionStatus.classList.remove('connected');
         connectionStatus.classList.add('disconnected');
-        statusText.textContent = "Offline";
     }
 }
 
@@ -152,7 +179,13 @@ function sendStroke(strokeData) {
     // We add a timestamp to order strokes
     state.db.collection('strokes').add({
         ...strokeData,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        userId: getUserId() // Helper to track ownership
+    }).then(docRef => {
+        // Track for Undo
+        state.myStrokeIds.push(docRef.id);
+        // Clear redo stack on new action
+        state.undoneStrokes = [];
     }).catch(err => console.error("Error sending stroke:", err));
 }
 
@@ -162,12 +195,12 @@ function startListening() {
     // Listen for strokes added in the last minute (to avoid loading entire history on refresh for this demo)
     // In a real app, you might want to load history or implement a more robust sync strategy
     const now = new Date();
-    // const oneMinuteAgo = new Date(now.getTime() - 60000);
 
     state.unsubscribe = state.db.collection('strokes')
         .orderBy('timestamp')
         .limitToLast(1000) // Limit to recent strokes
         .onSnapshot(snapshot => {
+<<<<<<< Updated upstream
             const changes = snapshot.docChanges();
             const hasRemovals = changes.some(change => change.type === 'removed');
 
@@ -185,6 +218,26 @@ function startListening() {
                     }
                 });
             }
+=======
+            snapshot.docChanges().forEach(change => {
+                if (change.type === 'added') {
+                    const data = change.doc.data();
+                    // Only draw if it's not our own stroke (optional optimization, but for now we draw everything to ensure sync)
+                    // Actually, since we draw locally immediately, we might double draw. 
+                    // A simple way to avoid this is to check if the data originated from us, 
+                    // but for this simple MVP, double drawing over the exact same pixels is fine and ensures consistency.
+                    // To be cleaner, we'll just draw it.
+                    drawRemoteStroke(data);
+                }
+                if (change.type === 'removed') {
+                    // Handle Undo (Remote)
+                    // Since we can't easily "un-draw" pixels on a raster canvas without clearing,
+                    // a full redraw is required for perfect sync.
+                    // For this MVP, we will trigger a full redraw from history.
+                    redrawCanvasFromSnapshot(snapshot);
+                }
+            });
+>>>>>>> Stashed changes
         });
 }
 
@@ -199,6 +252,42 @@ function drawRemoteStroke(data) {
     ctx.stroke();
 }
 
+function redrawCanvasFromSnapshot(snapshot) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    snapshot.forEach(doc => {
+        drawRemoteStroke(doc.data());
+    });
+}
+
+// --- Undo / Redo Logic ---
+function undo() {
+    if (state.myStrokeIds.length === 0) return;
+
+    const lastId = state.myStrokeIds.pop();
+
+    // Get the data before deleting (if we want to support Redo)
+    // For simplicity in Firestore, we just delete. 
+    // To support Redo, we'd need to fetch it first or store it locally.
+    // Let's try to fetch locally from our memory if possible, or just delete.
+    // Real Redo with Firestore deletion is hard because the data is gone.
+    // Strategy: We won't support Redo for *deleted* strokes in this simple version, 
+    // OR we implement "soft delete". 
+    // Let's stick to simple Undo (Delete) for now as per plan.
+
+    state.db.collection('strokes').doc(lastId).delete()
+        .catch(err => console.error("Error undoing:", err));
+}
+
+// Helper for user ID (simple session ID)
+function getUserId() {
+    let id = sessionStorage.getItem('paintApp_userId');
+    if (!id) {
+        id = 'user_' + Math.random().toString(36).substr(2, 9);
+        sessionStorage.setItem('paintApp_userId', id);
+    }
+    return id;
+}
+
 // --- Event Listeners ---
 function setupEventListeners() {
     // Canvas Mouse Events
@@ -208,12 +297,16 @@ function setupEventListeners() {
     canvas.addEventListener('mouseout', stopDrawing);
 
     // Toolbar
+    brushBtn.addEventListener('click', () => setTool('brush'));
+    eraserBtn.addEventListener('click', () => setTool('eraser'));
+
     colorPicker.addEventListener('input', (e) => state.color = e.target.value);
     sizeSlider.addEventListener('input', (e) => {
         state.size = e.target.value;
-        sizeValue.textContent = `${state.size}px`;
+        sizeValue.textContent = `${state.size} px`;
     });
 
+<<<<<<< Updated upstream
     clearBtn.addEventListener('click', async () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         // Clear strokes from Firestore if connected
@@ -238,6 +331,15 @@ function setupEventListeners() {
                 console.error("Error clearing strokes:", err);
                 alert("Error clearing: " + err.message);
             }
+=======
+    undoBtn.addEventListener('click', undo);
+    // Redo is disabled for this version as discussed in logic
+    redoBtn.addEventListener('click', () => alert("Redo is not available in this version."));
+
+    clearBtn.addEventListener('click', () => {
+        if (confirm("Clear your local canvas? This won't affect others.")) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+>>>>>>> Stashed changes
         }
     });
 
@@ -251,10 +353,26 @@ function setupEventListeners() {
             const config = JSON.parse(input);
             connectToFirebase(config);
         } catch (e) {
-            alert("Invalid JSON configuration. Please check the format.");
+            alert("Invalid JSON configuration.");
         }
     });
 }
 
+<<<<<<< Updated upstream
 // Start App when DOM is ready
 document.addEventListener('DOMContentLoaded', init);
+=======
+function setTool(tool) {
+    state.currentTool = tool;
+    if (tool === 'brush') {
+        brushBtn.classList.add('active');
+        eraserBtn.classList.remove('active');
+    } else {
+        brushBtn.classList.remove('active');
+        eraserBtn.classList.add('active');
+    }
+}
+
+// Start App
+init();
+>>>>>>> Stashed changes
