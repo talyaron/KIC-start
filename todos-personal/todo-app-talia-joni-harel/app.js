@@ -1,5 +1,5 @@
 // Import Firebase modules
-import { db } from './firebase-config.js';
+import { db, auth } from './firebase-config.js';
 import { 
   collection, 
   addDoc, 
@@ -9,14 +9,20 @@ import {
   onSnapshot,
   query,
   orderBy,
+  where,
   Timestamp 
 } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
+import { 
+  onAuthStateChanged,
+  signOut 
+} from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
 
 
 // Task Manager Application with Firebase Firestore
 class TaskManager {
-  constructor() {
+  constructor(user) {
     console.log('🚀 TaskManager constructor called');
+    this.user = user;
     this.tasks = [];
     this.taskInput = document.getElementById("taskInput");
     this.addTaskBtn = document.getElementById("addTaskBtn");
@@ -24,15 +30,29 @@ class TaskManager {
     this.emptyState = document.getElementById("emptyState");
     this.activeCount = document.getElementById("activeCount");
     this.totalCount = document.getElementById("totalCount");
+    this.userEmail = document.getElementById("userEmail");
+    this.logoutBtn = document.getElementById("logoutBtn");
     this.tasksCollection = collection(db, "tasks");
     this.unsubscribe = null;
     console.log('📦 Database collection initialized:', this.tasksCollection);
+    console.log('👤 User:', user.email);
 
     this.init();
   }
 
   init() {
     console.log('⚙️ Initializing TaskManager');
+    
+    // Display user email
+    if (this.userEmail) {
+      this.userEmail.textContent = this.user.email;
+    }
+    
+    // Logout button
+    if (this.logoutBtn) {
+      this.logoutBtn.addEventListener("click", () => this.logout());
+    }
+    
     // Event listeners
     this.addTaskBtn.addEventListener("click", () => {
       console.log('🖱️ Add button clicked');
@@ -45,13 +65,22 @@ class TaskManager {
       }
     });
 
+    // Attach event listeners for task actions (toggle and delete)
+    this.attachTaskListeners();
+
     // Set up real-time listener for tasks
     this.setupRealtimeListener();
   }
 
   setupRealtimeListener() {
-    // Query tasks ordered by creation date (newest first)
-    const q = query(this.tasksCollection, orderBy("createdAt", "desc"));
+    // Query tasks for current user only, ordered by creation date (newest first)
+    const q = query(
+      this.tasksCollection, 
+      where("userId", "==", this.user.uid),
+      orderBy("createdAt", "desc")
+    );
+    
+    console.log('📡 Setting up real-time listener for user:', this.user.uid);
     
     // Listen for real-time updates
     this.unsubscribe = onSnapshot(q, (snapshot) => {
@@ -59,6 +88,7 @@ class TaskManager {
         id: doc.id,
         ...doc.data()
       }));
+      console.log('📋 Tasks loaded:', this.tasks.length);
       this.render();
     }, (error) => {
       console.error("Error fetching tasks:", error);
@@ -80,6 +110,7 @@ class TaskManager {
       text: text,
       completed: false,
       createdAt: Timestamp.now(),
+      userId: this.user.uid,
     };
 
     try {
@@ -120,22 +151,31 @@ class TaskManager {
   }
 
   async deleteTask(id) {
+    console.log('🗑️ deleteTask called with ID:', id);
     // Add fade out animation before removing
     const taskElement = document.querySelector(`[data-task-id="${id}"]`);
+    console.log('📍 Task element found:', taskElement);
+    
     if (taskElement) {
+      console.log('✨ Starting delete animation');
       taskElement.style.animation = "taskDisappear 0.3s ease-out";
 
       setTimeout(async () => {
         try {
+          console.log('🔥 Attempting to delete from Firestore, ID:', id);
           const taskRef = doc(db, "tasks", id);
           await deleteDoc(taskRef);
+          console.log('✅ Task deleted successfully from Firestore');
         } catch (error) {
-          console.error("Error deleting task:", error);
-          alert("Failed to delete task. Please try again.");
+          console.error("❌ Error deleting task:", error);
+          console.error("Error details:", error.message, error.code);
+          alert("Failed to delete task. Please try again. Error: " + error.message);
           // Revert animation if deletion fails
           taskElement.style.animation = "";
         }
       }, 300);
+    } else {
+      console.warn('⚠️ Task element not found for ID:', id);
     }
   }
 
@@ -200,14 +240,19 @@ class TaskManager {
   }
 
   attachTaskListeners() {
+    console.log('🎯 Attaching task listeners with event delegation');
     // Use event delegation for better performance
     this.tasksList.addEventListener("click", (e) => {
+      console.log('👆 Click detected on:', e.target);
       const action = e.target.dataset.action;
       const id = e.target.dataset.id;
+      console.log('📋 Action:', action, 'ID:', id);
 
       if (action === "toggle") {
+        console.log('✓ Toggle action triggered');
         this.toggleTask(id);
       } else if (action === "delete") {
+        console.log('🗑️ Delete action triggered');
         this.deleteTask(id);
       }
     });
@@ -223,6 +268,17 @@ class TaskManager {
   destroy() {
     if (this.unsubscribe) {
       this.unsubscribe();
+    }
+  }
+  
+  // Logout method
+  async logout() {
+    try {
+      await signOut(auth);
+      window.location.href = 'auth.html';
+    } catch (error) {
+      console.error('Logout error:', error);
+      alert('Failed to logout. Please try again.');
     }
   }
 }
@@ -243,9 +299,19 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// Initialize the app when DOM is ready
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", () => new TaskManager());
-} else {
-  new TaskManager();
-}
+// Check authentication state before initializing app
+console.log('🔐 Checking authentication state...');
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    // User is signed in, initialize the app
+    console.log('✅ User authenticated:', user.email);
+    const taskManager = new TaskManager(user);
+    
+    // Store reference for cleanup if needed
+    window.taskManager = taskManager;
+  } else {
+    // No user is signed in, redirect to auth page
+    console.log('❌ No user signed in, redirecting to auth page...');
+    window.location.href = 'auth.html';
+  }
+});
