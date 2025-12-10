@@ -11,21 +11,10 @@ const state = {
     unsubscribe: null // Listener unsubscriber
 };
 
-// --- DOM Elements ---
-const canvas = document.getElementById('drawingCanvas');
-const ctx = canvas.getContext('2d');
-const wrapper = document.getElementById('canvasWrapper');
-const colorPicker = document.getElementById('colorPicker');
-const sizeSlider = document.getElementById('sizeSlider');
-const sizeValue = document.getElementById('sizeValue');
-const clearBtn = document.getElementById('clearBtn');
-const configBtn = document.getElementById('configBtn');
-const configModal = document.getElementById('configModal');
-const saveConfigBtn = document.getElementById('saveConfigBtn');
-const closeConfigBtn = document.getElementById('closeConfigBtn');
-const firebaseConfigInput = document.getElementById('firebaseConfigInput');
-const connectionStatus = document.getElementById('connectionStatus');
-const statusText = connectionStatus.querySelector('.status-text');
+// --- DOM Elements (initialized after DOM loads) ---
+let canvas, ctx, wrapper, colorPicker, sizeSlider, sizeValue;
+let clearBtn, configBtn, configModal, saveConfigBtn, closeConfigBtn;
+let firebaseConfigInput, connectionStatus, statusText;
 
 // --- Configuration ---
 const firebaseConfig = {
@@ -39,7 +28,25 @@ const firebaseConfig = {
 };
 
 // --- Initialization ---
+function initDOMElements() {
+    canvas = document.getElementById('drawingCanvas');
+    ctx = canvas.getContext('2d');
+    wrapper = document.getElementById('canvasWrapper');
+    colorPicker = document.getElementById('colorPicker');
+    sizeSlider = document.getElementById('sizeSlider');
+    sizeValue = document.getElementById('sizeValue');
+    clearBtn = document.getElementById('clearBtn');
+    configBtn = document.getElementById('configBtn');
+    configModal = document.getElementById('configModal');
+    saveConfigBtn = document.getElementById('saveConfigBtn');
+    closeConfigBtn = document.getElementById('closeConfigBtn');
+    firebaseConfigInput = document.getElementById('firebaseConfigInput');
+    connectionStatus = document.getElementById('connectionStatus');
+    statusText = connectionStatus.querySelector('.status-text');
+}
+
 function init() {
+    initDOMElements();
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
@@ -161,17 +168,23 @@ function startListening() {
         .orderBy('timestamp')
         .limitToLast(1000) // Limit to recent strokes
         .onSnapshot(snapshot => {
-            snapshot.docChanges().forEach(change => {
-                if (change.type === 'added') {
-                    const data = change.doc.data();
-                    // Only draw if it's not our own stroke (optional optimization, but for now we draw everything to ensure sync)
-                    // Actually, since we draw locally immediately, we might double draw. 
-                    // A simple way to avoid this is to check if the data originated from us, 
-                    // but for this simple MVP, double drawing over the exact same pixels is fine and ensures consistency.
-                    // To be cleaner, we'll just draw it.
-                    drawRemoteStroke(data);
-                }
-            });
+            const changes = snapshot.docChanges();
+            const hasRemovals = changes.some(change => change.type === 'removed');
+
+            if (hasRemovals) {
+                // If any strokes were removed, clear and redraw all remaining
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                snapshot.docs.forEach(doc => {
+                    drawRemoteStroke(doc.data());
+                });
+            } else {
+                // Only new strokes added, draw them
+                changes.forEach(change => {
+                    if (change.type === 'added') {
+                        drawRemoteStroke(change.doc.data());
+                    }
+                });
+            }
         });
 }
 
@@ -201,10 +214,31 @@ function setupEventListeners() {
         sizeValue.textContent = `${state.size}px`;
     });
 
-    clearBtn.addEventListener('click', () => {
+    clearBtn.addEventListener('click', async () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        // Note: We don't clear Firestore in this demo as it would affect everyone. 
-        // A real app would need a "Clear All" command synced via Firestore.
+        // Clear strokes from Firestore if connected
+        if (state.db) {
+            try {
+                const snapshot = await state.db.collection('strokes').get();
+                console.log("Found", snapshot.docs.length, "strokes to delete");
+
+                // Firestore batch limit is 500, so we may need multiple batches
+                const batchSize = 500;
+                const docs = snapshot.docs;
+
+                for (let i = 0; i < docs.length; i += batchSize) {
+                    const batch = state.db.batch();
+                    const chunk = docs.slice(i, i + batchSize);
+                    chunk.forEach(doc => batch.delete(doc.ref));
+                    await batch.commit();
+                    console.log("Deleted batch", Math.floor(i / batchSize) + 1);
+                }
+                console.log("All strokes deleted");
+            } catch (err) {
+                console.error("Error clearing strokes:", err);
+                alert("Error clearing: " + err.message);
+            }
+        }
     });
 
     // Config Modal
@@ -222,5 +256,5 @@ function setupEventListeners() {
     });
 }
 
-// Start App
-init();
+// Start App when DOM is ready
+document.addEventListener('DOMContentLoaded', init);
