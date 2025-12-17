@@ -54,7 +54,9 @@ class TaskManager {
 
     // Render initial tasks
     this.render();
->>>>>>> Stashed changes
+
+    // Attach event listeners for tasks (delegation)
+    this.attachTaskListeners();
   }
 
   setupRealtimeListener() {
@@ -176,9 +178,7 @@ class TaskManager {
 <<<<<<< Updated upstream
 
     // Attach event listeners to newly created elements
-    // this.attachTaskListeners(); // REMOVED: Moved to init() to prevent duplicates
-=======
->>>>>>> Stashed changes
+    // this.attachTaskListeners(); // Moved to init() to prevent multiple listeners
   }
 
   createTaskHTML(task) {
