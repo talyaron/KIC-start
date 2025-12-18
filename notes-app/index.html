@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notes App</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>Notes</h2>
+                <button id="add-note-btn" class="add-note-btn">+</button>
+            </div>
+            <div id="notes-list" class="notes-list">
+                <!-- Notes will be injected here -->
+            </div>
+        </aside>
+        <main class="main">
+            <div class="editor">
+                <input type="text" id="note-title" class="note-title" placeholder="Note Title">
+                <textarea id="note-content" class="note-content" placeholder="Start writing..."></textarea>
+            </div>
+        </main>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
