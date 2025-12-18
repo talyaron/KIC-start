@@ -1,0 +1,44 @@
+.fast-excuse-page {
+  min-height: 100vh;
+  background: #f3f4f6;
+}
+
+.fast-content {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.page-title {
+  text-align: center;
+  font-size: 1.75rem;
+  margin: 0;
+  color: #1f2937;
+}
+
+.page-subtitle {
+  text-align: center;
+  color: #6b7280;
+  margin: 0.5rem 0 2rem 0;
+}
+
+.loading {
+  text-align: center;
+  padding: 3rem;
+  color: #6b7280;
+  font-size: 1.1rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  background: white;
+  border-radius: 12px;
+  color: #6b7280;
+}
+
+.excuse-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}

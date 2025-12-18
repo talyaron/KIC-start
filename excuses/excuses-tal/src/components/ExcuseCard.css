@@ -1,0 +1,94 @@
+.excuse-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.25rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.excuse-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.excuse-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.category-badge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+.category-badge.late {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.category-badge.homework {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.category-badge.forgot_equipment {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.category-badge.absence {
+  background: #f3e8ff;
+  color: #9333ea;
+}
+
+.stats {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.excuse-text {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  margin: 0.75rem 0;
+  color: #1f2937;
+}
+
+.excuse-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.creator {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.use-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 0.5rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9rem;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.use-button:hover {
+  opacity: 0.9;
+  transform: scale(1.02);
+}
+
+.use-button:active {
+  transform: scale(0.98);
+}

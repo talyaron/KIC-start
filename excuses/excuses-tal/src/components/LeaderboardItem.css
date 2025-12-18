@@ -1,0 +1,43 @@
+.leaderboard-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: white;
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+  transition: transform 0.2s;
+}
+
+.leaderboard-item:hover {
+  transform: translateX(-4px);
+}
+
+.leaderboard-item.current-user {
+  background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);
+  border: 2px solid #667eea;
+}
+
+.rank {
+  font-size: 1.25rem;
+  font-weight: bold;
+  min-width: 40px;
+  text-align: center;
+}
+
+.leaderboard-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.leaderboard-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.leaderboard-score {
+  color: #667eea;
+  font-weight: bold;
+}
