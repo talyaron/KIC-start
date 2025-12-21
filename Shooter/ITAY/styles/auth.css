@@ -1,0 +1,45 @@
+/* ===========================
+   AUTH SCREEN STYLES
+   =========================== */
+#auth-screen {
+    background:
+        radial-gradient(circle at 20% 50%, rgba(255, 0, 110, 0.15) 0%, transparent 50%),
+        radial-gradient(circle at 80% 50%, rgba(131, 56, 236, 0.15) 0%, transparent 50%),
+        var(--color-bg-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.auth-container {
+    max-width: 480px;
+    width: 100%;
+    padding: var(--spacing-xl);
+}
+
+.game-title {
+    font-size: var(--font-size-3xl);
+    font-weight: 800;
+    text-align: center;
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: var(--spacing-xs);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.game-subtitle {
+    text-align: center;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--spacing-xl);
+    font-weight: 500;
+}
+
+.auth-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}

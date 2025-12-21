@@ -1,0 +1,366 @@
+/* Enhanced Lobby Styles with Multiplayer Support */
+
+#lobby-screen {
+    background:
+        radial-gradient(circle at 30% 30%, rgba(131, 56, 236, 0.15) 0%, transparent 50%),
+        radial-gradient(circle at 70% 70%, rgba(255, 0, 110, 0.15) 0%, transparent 50%),
+        var(--color-bg-primary);
+}
+
+.lobby-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 2rem;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+/* Mode Selection */
+.lobby-menu {
+    padding: 2rem 0;
+}
+
+.mode-card {
+    background: var(--color-bg-secondary);
+    border: 3px solid rgba(131, 56, 236, 0.3);
+    border-radius: var(--radius-lg);
+    padding: 3rem 2rem;
+    cursor: pointer;
+    transition: all var(--transition-base);
+    text-align: center;
+}
+
+.mode-card:hover {
+    border-color: var(--color-accent-primary);
+    transform: translateY(-8px);
+    box-shadow: 0 12px 40px rgba(255, 0, 110, 0.4);
+}
+
+.mode-icon {
+    font-size: 5rem;
+    margin-bottom: 1.5rem;
+    filter: drop-shadow(0 4px 8px rgba(255, 0, 110, 0.3));
+}
+
+.mode-title {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.mode-desc {
+    font-size: 1.1rem;
+    color: var(--color-text-secondary);
+}
+
+/* Room Code Display */
+.room-code-display {
+    text-align: center;
+    padding: 3rem;
+    background: var(--gradient-primary);
+    border-radius: var(--radius-lg);
+    margin-bottom: 2rem;
+    box-shadow: 0 0 60px rgba(255, 0, 110, 0.5);
+    animation: pulse 3s ease infinite;
+}
+
+.room-code-label {
+    font-size: 1.1rem;
+    color: rgba(255, 255, 255, 0.95);
+    margin-bottom: 1.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3em;
+    font-weight: 700;
+}
+
+.room-code-value {
+    font-family: 'Courier New', monospace;
+    font-size: 6rem;
+    font-weight: 900;
+    letter-spacing: 0.5em;
+    color: white;
+    text-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
+    cursor: pointer;
+    transition: all var(--transition-base);
+    user-select: all;
+    position: relative;
+}
+
+.room-code-value:hover {
+    transform: scale(1.1);
+    text-shadow: 0 12px 24px rgba(0, 0, 0, 0.8);
+}
+
+.room-code-value::after {
+    content: 'Click to copy';
+    position: absolute;
+    bottom: -2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.8rem;
+    opacity: 0;
+    transition: opacity var(--transition-base);
+}
+
+.room-code-value:hover::after {
+    opacity: 1;
+}
+
+.copy-hint {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.9);
+    margin-top: 1.5rem;
+    font-weight: 500;
+}
+
+/* Join Section */
+.join-by-id-section {
+    background: var(--color-bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: 3rem;
+    margin-bottom: 2rem;
+    border: 2px solid rgba(131, 56, 236, 0.4);
+}
+
+.join-by-id-section h2 {
+    font-size: 2.5rem;
+    margin-bottom: 2rem;
+    text-align: center;
+    font-weight: 800;
+    background: var(--gradient-secondary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.join-input-group {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.join-input-group input {
+    flex: 1;
+    font-family: 'Courier New', monospace;
+    font-size: 2rem;
+    letter-spacing: 0.3em;
+    text-align: center;
+    text-transform: uppercase;
+    padding: 1.5rem;
+    background: var(--color-bg-tertiary);
+    border: 3px solid transparent;
+    border-radius: var(--radius-md);
+    color: var(--color-text-primary);
+    transition: all var(--transition-base);
+}
+
+.join-input-group input:focus {
+    border-color: var(--color-accent-primary);
+    box-shadow: 0 0 20px rgba(255, 0, 110, 0.3);
+}
+
+.join-input-group button {
+    padding: 1.5rem 3rem;
+    background: var(--gradient-secondary);
+    color: white;
+    border-radius: var(--radius-md);
+    font-weight: 700;
+    font-size: 1.3rem;
+    transition: all var(--transition-base);
+}
+
+.join-input-group button:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(131, 56, 236, 0.5);
+}
+
+/* Player Slots */
+.player-slots {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.player-slot {
+    background: var(--color-bg-secondary);
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    min-height: 150px;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    transition: all var(--transition-base);
+}
+
+.player-slot.occupied {
+    border-color: var(--color-accent-secondary);
+    background: linear-gradient(135deg, var(--color-bg-secondary) 0%, rgba(131, 56, 236, 0.15) 100%);
+}
+
+.player-slot.ready {
+    border-color: var(--color-success);
+    background: linear-gradient(135deg, var(--color-bg-secondary) 0%, rgba(6, 255, 165, 0.15) 100%);
+    box-shadow: 0 0 30px rgba(6, 255, 165, 0.3);
+}
+
+.player-slot.empty {
+    opacity: 0.4;
+    justify-content: center;
+    flex-direction: column;
+    text-align: center;
+}
+
+.player-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    font-weight: 900;
+    color: white;
+    flex-shrink: 0;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.player-info {
+    flex: 1;
+}
+
+.player-name {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.host-badge {
+    font-size: 0.7rem;
+    background: var(--gradient-primary);
+    padding: 0.3rem 0.8rem;
+    border-radius: var(--radius-full);
+    font-weight: 800;
+}
+
+.player-code {
+    font-family: 'Courier New', monospace;
+    font-size: 1rem;
+    color: var(--color-text-muted);
+    margin-bottom: 0.8rem;
+}
+
+.ready-badge {
+    display: inline-block;
+    padding: 0.5rem 1.2rem;
+    background: var(--color-success);
+    color: var(--color-bg-primary);
+    border-radius: var(--radius-full);
+    font-size: 0.9rem;
+    font-weight: 800;
+    animation: pulse 2s ease infinite;
+}
+
+.waiting-badge {
+    display: inline-block;
+    padding: 0.5rem 1.2rem;
+    background: var(--color-warning);
+    color: var(--color-bg-primary);
+    border-radius: var(--radius-full);
+    font-size: 0.9rem;
+    font-weight: 800;
+}
+
+.empty-slot-icon {
+    font-size: 4rem;
+    color: rgba(255, 255, 255, 0.2);
+    margin-bottom: 1rem;
+}
+
+.empty-slot-text {
+    color: var(--color-text-muted);
+    font-size: 1.1rem;
+}
+
+/* Lobby Controls */
+.lobby-controls {
+    display: flex;
+    gap: 1.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.lobby-controls button {
+    padding: 1.5rem 3rem;
+    border-radius: var(--radius-lg);
+    font-weight: 800;
+    font-size: 1.3rem;
+    min-width: 200px;
+    transition: all var(--transition-base);
+    position: relative;
+    overflow: hidden;
+}
+
+.lobby-controls button::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.lobby-controls button:hover::before {
+    width: 400px;
+    height: 400px;
+}
+
+.ready-btn {
+    background: var(--gradient-secondary);
+    color: white;
+}
+
+.ready-btn.is-ready {
+    background: var(--color-success);
+}
+
+.start-btn {
+    background: var(--gradient-primary);
+    color: white;
+    box-shadow: 0 0 40px rgba(255, 0, 110, 0.5);
+}
+
+.start-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.start-btn:not(:disabled):hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 50px rgba(255, 0, 110, 0.7);
+}
+
+.leave-btn {
+    background: transparent;
+    color: var(--color-error);
+    border: 3px solid var(--color-error);
+}
+
+.leave-btn:hover {
+    background: var(--color-error);
+    color: white;
+    transform: translateY(-4px);
+}
