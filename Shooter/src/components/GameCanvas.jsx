@@ -37,8 +37,9 @@ export default function GameCanvas() {
                         projectiles: state.projectiles
                     }).catch(() => { });
                 } else if (state.type === 'DAMAGE') {
+                    const safeHp = (state.newHp !== undefined && state.newHp !== null) ? state.newHp : 50;
                     updateDoc(roomRef, {
-                        [`players.${state.uid}.hp`]: state.newHp || 50
+                        [`players.${state.uid}.hp`]: safeHp
                     }).catch(() => { });
                 }
             },
