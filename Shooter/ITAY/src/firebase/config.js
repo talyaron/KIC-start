@@ -1,7 +1,5 @@
-import firebase from 'firebase/app';
-import 'firebase/auth';
-import 'firebase/firestore';
-import 'firebase/database';
+// Use global firebase from index.html scripts
+const firebase = window.firebase;
 
 // Firebase Configuration with provided credentials
 const firebaseConfig = {
