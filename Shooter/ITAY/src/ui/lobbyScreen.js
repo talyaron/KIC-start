@@ -358,11 +358,14 @@ export class LobbyScreen {
         const readyBtn = document.getElementById('ready-btn');
         const startBtn = document.getElementById('start-btn');
 
-        const myPlayer = roomData.players[this.currentUser.uid];
+        const myPlayer = roomData.players ? roomData.players[this.currentUser.uid] : null;
         if (myPlayer) {
             this.isReady = myPlayer.ready;
             readyBtn.textContent = this.isReady ? '✓ Ready' : 'Ready Up';
             readyBtn.classList.toggle('is-ready', this.isReady);
+        } else {
+            // Player might have left or room is closing
+            return;
         }
 
         const isRoomHost = roomData.hostUid === this.currentUser.uid;

@@ -13,30 +13,6 @@ import { CONFIG } from '../config.js';
 console.log(`🔌 [RTDB] Initializing connection to: ${database.app.options.databaseURL}`);
 database.goOnline();
 
-database.ref('.info/connected').on('value', (snap) => {
-    if (snap.val() === true) {
-        console.log("🟢 [RTDB] Connection established and verified");
-    } else {
-        console.log("🔴 [RTDB] Connection lost/pending...");
-    }
-});
-
-// Optional pre-flight check to see if Belgium is reachable
-async function checkConnectivity() {
-    try {
-        // Ensure no double slash
-        const baseUrl = database.app.options.databaseURL.replace(/\/$/, "");
-        const url = `${baseUrl}/.json?limitToFirst=1`;
-        console.log(`📡 [RTDB] Pre-flight pinging: ${url}`);
-        const res = await fetch(url);
-        console.log(`✅ [RTDB] Server reachable via HTTPS (Status: ${res.status})`);
-        return true;
-    } catch (e) {
-        console.warn(`❌ [RTDB] Server unreachable via HTTPS: ${e.message}`);
-        return false;
-    }
-}
-
 let isRtdbConnected = false;
 database.ref('.info/connected').on('value', (snap) => {
     isRtdbConnected = snap.val() === true;
@@ -51,12 +27,9 @@ export async function createRoom(host) {
     const roomCode = host.userCode; // Use host's 6-digit User ID as Room Code
     console.log(`🏗️ [RTDB] Attempting to create room: ${roomCode} (Connected: ${isRtdbConnected})`);
 
-    // Pre-flight check
-    await checkConnectivity();
-
     if (!isRtdbConnected) {
-        console.warn("⚠️ [RTDB] Handshake still pending. Waiting 5s for protocol upgrade...");
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        console.warn("⚠️ [RTDB] Handshake still pending. Waiting up to 5s for protocol upgrade...");
+        // Non-blocking wait, but we'll try to proceed anyway
     }
 
     // Add a longer timeout for initial connection
@@ -66,7 +39,7 @@ export async function createRoom(host) {
                 "Server is slow to respond. Try again in a moment." :
                 "Your network is blocking WebSockets. Try a different network or disable VPN.";
             reject(new Error(`Firebase connection timeout. ${advice}`));
-        }, 30000)
+        }, 15000)
     );
 
     try {
@@ -251,13 +224,36 @@ export async function updatePlayerPosition(roomCode, uid, position) {
 }
 
 /**
- * Update player HP
- * @param {string} roomCode - Room code
- * @param {string} uid - User ID
- * @param {number} hp - New HP value
+ * Broadcast a synchronized game event (shot, kill, etc)
+ * @param {string} roomCode 
+ * @param {Object} eventData 
  */
-export async function updatePlayerHP(roomCode, uid, hp) {
-    await database.ref(`rooms/${roomCode}/players/${uid}`).update({ hp: Math.max(0, hp) });
+export async function broadcastGameEvent(roomCode, eventData) {
+    const eventRef = database.ref(`rooms/${roomCode}/events`).push();
+    await eventRef.set({
+        ...eventData,
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    });
+
+    // Cleanup old events (optional, keep last 10)
+    // database.ref(`rooms/${roomCode}/events`).limitToLast(10);
+}
+
+/**
+ * Listen for game events
+ * @param {string} roomCode 
+ * @param {Function} callback 
+ */
+export function onGameEvent(roomCode, callback) {
+    const eventsRef = database.ref(`rooms/${roomCode}/events`);
+    // Only listen for NEW events added after this point
+    const query = eventsRef.orderByChild('timestamp').startAt(Date.now());
+
+    const listener = query.on('child_added', (snapshot) => {
+        callback(snapshot.val());
+    });
+
+    return () => eventsRef.off('child_added', listener);
 }
 
 /**
@@ -265,19 +261,11 @@ export async function updatePlayerHP(roomCode, uid, hp) {
  * @param {string} roomCode - Room code
  * @param {string} uid - User ID
  * @param {number} score - Score increment
- * @param {string} enemyType - Enemy type killed
  */
-export async function updatePlayerScore(roomCode, uid, score, enemyType = null) {
-    const updates = {
-        score: firebase.database.ServerValue.increment(score),
-    };
-
-    if (enemyType) {
-        const killKey = `${enemyType.toLowerCase()}`;
-        updates[`kills/${killKey}`] = firebase.database.ServerValue.increment(1);
-    }
-
-    await database.ref(`rooms/${roomCode}/players/${uid}`).update(updates);
+export async function updatePlayerScore(roomCode, uid, score) {
+    await database.ref(`rooms/${roomCode}/players/${uid}/score`).set(
+        firebase.database.ServerValue.increment(score)
+    );
 }
 
 /**
@@ -286,21 +274,9 @@ export async function updatePlayerScore(roomCode, uid, score, enemyType = null) 
  * @param {number} scoreChange - Score change (can be negative)
  */
 export async function updateTeamScore(roomCode, scoreChange) {
-    await database.ref(`rooms/${roomCode}`).update({
-        teamScore: firebase.database.ServerValue.increment(scoreChange),
-    });
-}
-
-/**
- * Update player damage taken
- * @param {string} roomCode - Room code
- * @param {string} uid - User ID
- * @param {number} damage - Damage amount
- */
-export async function updatePlayerDamage(roomCode, uid, damage) {
-    await database.ref(`rooms/${roomCode}/players/${uid}`).update({
-        damageTaken: firebase.database.ServerValue.increment(damage),
-    });
+    await database.ref(`rooms/${roomCode}/teamScore`).set(
+        firebase.database.ServerValue.increment(scoreChange)
+    );
 }
 
 /**
@@ -332,25 +308,6 @@ export function onRoomChange(roomCode, callback) {
 
     // Return unsubscribe function
     return () => roomRef.off('value', listener);
-}
-
-/**
- * Listen to player changes
- * @param {string} roomCode - Room code
- * @param {string} uid - User ID
- * @param {Function} callback - Callback function(playerData)
- * @returns {Function} Unsubscribe function
- */
-export function onPlayerChange(roomCode, uid, callback) {
-    const playerRef = database.ref(`rooms/${roomCode}/players/${uid}`);
-
-    const listener = playerRef.on('value', (snapshot) => {
-        if (snapshot.exists()) {
-            callback(snapshot.val());
-        }
-    });
-
-    return () => playerRef.off('value', listener);
 }
 
 /**

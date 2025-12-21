@@ -7,7 +7,7 @@ import { CONFIG } from '../config.js';
 import { audioManager } from '../audio/audioManager.js';
 import { throttle } from '../utils/helpers.js';
 import { database } from '../firebase/config.js';
-import { updatePlayerPosition, onRoomChange, updateTeamScore } from '../firebase/realtime.js';
+import { updatePlayerPosition, onRoomChange, updateTeamScore, broadcastGameEvent, onGameEvent } from '../firebase/realtime.js';
 
 export class Game {
     constructor(canvas, roomCode, currentUser, roomData, isHost) {
@@ -52,8 +52,45 @@ export class Game {
         // Animation frame ID
         this.animationId = null;
 
-        // Listen for room updates
+        // Listen for room and game events
         this.setupNetworkListeners();
+        this.setupGameEventListeners();
+    }
+
+    setupGameEventListeners() {
+        if (this.roomCode === 'local') return;
+
+        this.unsubscribeEvents = onGameEvent(this.roomCode, (event) => {
+            if (!this.running || event.sender === this.currentUser.uid) return;
+            this.handleRemoteEvent(event);
+        });
+    }
+
+    handleRemoteEvent(event) {
+        switch (event.type) {
+            case 'SHOT':
+                this.handleRemoteShot(event);
+                break;
+            case 'ENEMY_KILLED':
+                this.handleRemoteKill(event);
+                break;
+        }
+    }
+
+    handleRemoteShot(event) {
+        // Create bullet for remote player
+        const bullet = new Bullet(event.x, event.y, event.sender, event.damage);
+        this.bullets.push(bullet);
+        audioManager.play('shoot');
+    }
+
+    handleRemoteKill(event) {
+        // Find and remove enemy by spawnId
+        const enemy = this.enemies.find(e => e.spawnId === event.spawnId);
+        if (enemy) {
+            enemy.destroy();
+            audioManager.play('enemyHit');
+        }
     }
 
     setupNetworkListeners() {
@@ -177,6 +214,10 @@ export class Game {
             this.unsubscribeRoom();
             this.unsubscribeRoom = null;
         }
+        if (this.unsubscribeEvents) {
+            this.unsubscribeEvents();
+            this.unsubscribeEvents = null;
+        }
 
         // Final sync of stats
         this.syncStatsToServer();
@@ -224,7 +265,7 @@ export class Game {
 
         // Spawn enemies (Deterministic for all players via matchSeed)
         if (this.spawner) {
-            this.spawner.spawn(this.enemies, currentTime);
+            this.spawner.spawn(this.enemies, currentTime, this.players.size);
         }
 
         // Update enemies
@@ -263,7 +304,7 @@ export class Game {
      * @param {Player} player - Player shooting
      * @param {number} currentTime - Current timestamp
      */
-    shoot(player, currentTime) {
+    shoot(player, currentTime, isRemote = false) {
         const bulletX = player.x + player.width / 2 - CONFIG.BULLET.WIDTH / 2;
         const bulletY = player.y;
 
@@ -272,6 +313,17 @@ export class Game {
 
         player.shoot(currentTime);
         audioManager.play('shoot');
+
+        // Broadcast shot to other players
+        if (!isRemote && this.roomCode !== 'local') {
+            broadcastGameEvent(this.roomCode, {
+                type: 'SHOT',
+                x: bulletX,
+                y: bulletY,
+                damage: player.damage,
+                sender: this.currentUser.uid
+            });
+        }
     }
 
     /**
@@ -295,7 +347,15 @@ export class Game {
                     const owner = this.players.get(bullet.ownerId);
                     if (owner) {
                         owner.addKill(enemy.type, enemy.score);
-                        // score sync is now handled by throttled syncStats()
+
+                        // If I killed it, tell everyone else to remove it too
+                        if (bullet.ownerId === this.currentUser.uid && this.roomCode !== 'local') {
+                            broadcastGameEvent(this.roomCode, {
+                                type: 'ENEMY_KILLED',
+                                spawnId: enemy.spawnId,
+                                sender: this.currentUser.uid
+                            });
+                        }
                     }
 
                     break;

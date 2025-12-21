@@ -12,6 +12,7 @@ export class EnemySpawner {
         this.lastSpawnTime = 0;
         this.difficulty = CONFIG.SPAWN.INITIAL_DIFFICULTY;
         this.gameStartTime = Date.now();
+        this.spawnCounter = 0; // Incremental counter for spawn IDs
     }
 
     /**
@@ -23,11 +24,11 @@ export class EnemySpawner {
         const weights = types.map(type => CONFIG.ENEMIES[type].spawnWeight);
         const totalWeight = weights.reduce((sum, w) => sum + w, 0);
 
-        let random = this.random() * totalWeight;
+        let randomValue = this.random() * totalWeight;
 
         for (let i = 0; i < types.length; i++) {
-            random -= weights[i];
-            if (random <= 0) {
+            randomValue -= weights[i];
+            if (randomValue <= 0) {
                 return types[i];
             }
         }
@@ -47,9 +48,14 @@ export class EnemySpawner {
      * Spawn enemies
      * @param {Array} enemies - Current enemies array
      * @param {number} currentTime - Current timestamp
+     * @param {number} playerCount - Number of players for scaling
      */
-    spawn(enemies, currentTime) {
-        if (currentTime - this.lastSpawnTime < CONFIG.SPAWN.INTERVAL / this.difficulty) {
+    spawn(enemies, currentTime, playerCount = 1) {
+        // Apply 25% increase per additional player (1 player = 1.0, 2 = 1.25, 3 = 1.5, etc)
+        const playerScale = 1 + ((playerCount - 1) * 0.25);
+        const scaledInterval = CONFIG.SPAWN.INTERVAL / (this.difficulty * playerScale);
+
+        if (currentTime - this.lastSpawnTime < scaledInterval) {
             return;
         }
 
@@ -63,7 +69,10 @@ export class EnemySpawner {
         // Spawn new enemy
         const type = this.getRandomEnemyType();
         const x = this.random() * (this.canvasWidth - CONFIG.ENEMIES[type].size);
+        const spawnId = `${this.seed}_${this.spawnCounter++}`; // Unique ID across all clients
+
         const enemy = new Enemy(type, x, -CONFIG.ENEMIES[type].size);
+        enemy.spawnId = spawnId;
 
         enemies.push(enemy);
         this.lastSpawnTime = currentTime;
