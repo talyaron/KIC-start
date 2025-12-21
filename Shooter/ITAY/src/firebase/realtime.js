@@ -1,6 +1,6 @@
 // Firebase Realtime Database Operations (Game State & Rooms)
 
-import { database } from './config.js';
+import firebase, { database } from './config.js';
 import { generateUniqueRoomCode } from '../utils/idGenerator.js';
 import { CONFIG } from '../config.js';
 
@@ -9,35 +9,103 @@ import { CONFIG } from '../config.js';
  * @param {Object} host - Host user data
  * @returns {Promise<string>} Room code
  */
+// Force database to go online
+console.log(`🔌 [RTDB] Initializing connection to: ${database.app.options.databaseURL}`);
+database.goOnline();
+
+database.ref('.info/connected').on('value', (snap) => {
+    if (snap.val() === true) {
+        console.log("🟢 [RTDB] Connection established and verified");
+    } else {
+        console.log("🔴 [RTDB] Connection lost/pending...");
+    }
+});
+
+// Optional pre-flight check to see if Belgium is reachable
+async function checkConnectivity() {
+    try {
+        // Ensure no double slash
+        const baseUrl = database.app.options.databaseURL.replace(/\/$/, "");
+        const url = `${baseUrl}/.json?limitToFirst=1`;
+        console.log(`📡 [RTDB] Pre-flight pinging: ${url}`);
+        const res = await fetch(url);
+        console.log(`✅ [RTDB] Server reachable via HTTPS (Status: ${res.status})`);
+        return true;
+    } catch (e) {
+        console.warn(`❌ [RTDB] Server unreachable via HTTPS: ${e.message}`);
+        return false;
+    }
+}
+
+let isRtdbConnected = false;
+database.ref('.info/connected').on('value', (snap) => {
+    isRtdbConnected = snap.val() === true;
+    if (isRtdbConnected) {
+        console.log("🟢 [RTDB] Connection established and verified");
+    } else {
+        console.log("🔴 [RTDB] Connection lost/pending...");
+    }
+});
+
 export async function createRoom(host) {
-    const roomCode = await generateUniqueRoomCode(database);
+    const roomCode = host.userCode; // Use host's 6-digit User ID as Room Code
+    console.log(`🏗️ [RTDB] Attempting to create room: ${roomCode} (Connected: ${isRtdbConnected})`);
 
-    const roomData = {
-        hostUid: host.uid,
-        status: 'lobby',
-        createdAt: firebase.database.ServerValue.TIMESTAMP,
-        countdown: CONFIG.COUNTDOWN.START,
-        matchSeed: Math.floor(Math.random() * 1000000),
-        teamScore: 0,
-        players: {
-            [host.uid]: {
-                userCode: host.userCode,
-                displayName: host.displayName,
-                ready: false,
-                hp: CONFIG.PLAYER.BASE_HP,
-                score: 0,
-                x: 0,
-                y: 0,
-                kills: { red: 0, yellow: 0, blue: 0 },
-                damageTaken: 0,
-                survivalTime: 0,
+    // Pre-flight check
+    await checkConnectivity();
+
+    if (!isRtdbConnected) {
+        console.warn("⚠️ [RTDB] Handshake still pending. Waiting 5s for protocol upgrade...");
+        await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+
+    // Add a longer timeout for initial connection
+    const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => {
+            const advice = isRtdbConnected ?
+                "Server is slow to respond. Try again in a moment." :
+                "Your network is blocking WebSockets. Try a different network or disable VPN.";
+            reject(new Error(`Firebase connection timeout. ${advice}`));
+        }, 30000)
+    );
+
+    try {
+        const roomData = {
+            hostUid: host.uid,
+            status: 'lobby',
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            countdown: CONFIG.COUNTDOWN.START,
+            lobbyCountdown: 30, // 30 second grace period for joining
+            matchSeed: Math.floor(Math.random() * 1000000),
+            teamScore: 0,
+            players: {
+                [host.uid]: {
+                    userCode: host.userCode,
+                    displayName: host.displayName,
+                    ready: true, // Host is ready by default
+                    hp: CONFIG.PLAYER.BASE_HP,
+                    score: 0,
+                    x: 0,
+                    y: 0,
+                    kills: { red: 0, yellow: 0, blue: 0 },
+                    damageTaken: 0,
+                    survivalTime: 0,
+                },
             },
-        },
-    };
+        };
 
-    await database.ref(`rooms/${roomCode}`).set(roomData);
+        // set() will overwrite any existing stale data, so remove() is unnecessary
+        await Promise.race([
+            database.ref(`rooms/${roomCode}`).set(roomData),
+            timeoutPromise
+        ]);
 
-    return roomCode;
+        console.log(`✅ [RTDB] Room ${roomCode} created successfully`);
+        return roomCode;
+    } catch (error) {
+        console.error('❌ [RTDB] Create room error:', error);
+        throw error;
+    }
 }
 
 /**
@@ -147,6 +215,15 @@ export async function updateCountdown(roomCode, value) {
     }
 
     await database.ref(`rooms/${roomCode}`).update(updates);
+}
+
+/**
+ * Update lobby countdown (before game starts)
+ * @param {string} roomCode - Room code
+ * @param {number} value - Countdown value
+ */
+export async function updateLobbyCountdown(roomCode, value) {
+    await database.ref(`rooms/${roomCode}`).update({ lobbyCountdown: value });
 }
 
 /**

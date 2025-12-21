@@ -128,6 +128,35 @@
     border: 2px solid rgba(131, 56, 236, 0.4);
 }
 
+.room-info-header {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 2rem;
+}
+
+.lobby-timer {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.8rem 2rem;
+    border-radius: var(--radius-full);
+    font-weight: 800;
+    font-size: 1.2rem;
+    color: var(--color-accent-secondary);
+    border: 2px solid var(--color-accent-secondary);
+    animation: flash 1s ease-in-out infinite alternate;
+}
+
+@keyframes flash {
+    from {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    to {
+        opacity: 0.8;
+        transform: scale(1.05);
+    }
+}
+
 .join-by-id-section h2 {
     font-size: 2.5rem;
     margin-bottom: 2rem;

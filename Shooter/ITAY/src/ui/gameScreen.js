@@ -139,13 +139,15 @@ export class GameScreen {
         });
 
         const stats = {};
-        stats[this.currentGame.currentUser.uid] = {
-            displayName: player.displayName || 'Player',
-            score: player.score,
-            kills: player.kills,
-            damageTaken: player.damageTaken,
-            survivalTime: survivalTime
-        };
+        for (const [uid, p] of this.currentGame.players.entries()) {
+            stats[uid] = {
+                displayName: p.displayName || 'Player',
+                score: p.score,
+                kills: p.kills,
+                damageTaken: p.damageTaken,
+                survivalTime: uid === this.currentGame.currentUser.uid ? survivalTime : 0 // Only local knows its survival time correctly for now
+            };
+        }
 
         this.onGameEnd(stats);
     }

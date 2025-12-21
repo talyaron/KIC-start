@@ -172,7 +172,8 @@ export const CONFIG = {
 
     // Networking
     NETWORK: {
-        POSITION_UPDATE_RATE: 50, // ms (20 updates per second)
+        POSITION_UPDATE_RATE: 150, // ms (approx 6.6 updates per second)
+        SCORE_UPDATE_RATE: 2000,    // ms (sync score to room every 2 seconds)
         MAX_PLAYERS: 4,
         ROOM_CODE_LENGTH: 6,
         USER_CODE_LENGTH: 6,

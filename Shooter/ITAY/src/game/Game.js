@@ -6,6 +6,8 @@ import { EnemySpawner } from './spawner.js';
 import { CONFIG } from '../config.js';
 import { audioManager } from '../audio/audioManager.js';
 import { throttle } from '../utils/helpers.js';
+import { database } from '../firebase/config.js';
+import { updatePlayerPosition, onRoomChange, updateTeamScore } from '../firebase/realtime.js';
 
 export class Game {
     constructor(canvas, roomCode, currentUser, roomData, isHost) {
@@ -29,9 +31,11 @@ export class Game {
         // Local player
         this.localPlayer = null;
 
-        // Enemy spawner (host only)
-        if (isHost && roomData.matchSeed) {
+        // Enemy spawner (synchronized via matchSeed)
+        if (roomData && roomData.matchSeed) {
             this.spawner = new EnemySpawner(roomData.matchSeed, this.canvas.width);
+        } else if (roomCode === 'local') {
+            this.spawner = new EnemySpawner(Math.floor(Math.random() * 1000000), this.canvas.width);
         }
 
         // Initialize players from room data
@@ -43,9 +47,31 @@ export class Game {
 
         // Network sync (throttled)
         this.syncPosition = throttle(this.syncPositionToServer.bind(this), CONFIG.NETWORK.POSITION_UPDATE_RATE);
+        this.syncStats = throttle(this.syncStatsToServer.bind(this), CONFIG.NETWORK.SCORE_UPDATE_RATE);
 
         // Animation frame ID
         this.animationId = null;
+
+        // Listen for room updates
+        this.setupNetworkListeners();
+    }
+
+    setupNetworkListeners() {
+        if (this.roomCode === 'local') return;
+
+        this.unsubscribeRoom = onRoomChange(this.roomCode, (roomData) => {
+            if (!roomData || !this.running) return;
+
+            // Update other players
+            Object.keys(roomData.players || {}).forEach(uid => {
+                if (uid !== this.currentUser.uid) {
+                    this.updatePlayerFromServer(uid, roomData.players[uid]);
+                }
+            });
+
+            // Update team score if needed
+            this.teamScore = roomData.teamScore || 0;
+        });
     }
 
     /**
@@ -142,6 +168,13 @@ export class Game {
         if (this.animationId) {
             cancelAnimationFrame(this.animationId);
         }
+        if (this.unsubscribeRoom) {
+            this.unsubscribeRoom();
+            this.unsubscribeRoom = null;
+        }
+
+        // Final sync of stats
+        this.syncStatsToServer();
     }
 
     /**
@@ -176,8 +209,9 @@ export class Game {
                 this.shoot(this.localPlayer, currentTime);
             }
 
-            // Sync position to server
+            // Sync position and stats to server
             this.syncPosition();
+            this.syncStats();
         }
 
         // Update all players
@@ -260,11 +294,7 @@ export class Game {
                     const owner = this.players.get(bullet.ownerId);
                     if (owner) {
                         owner.addKill(enemy.type, enemy.score);
-
-                        // Sync score if local player
-                        if (owner === this.localPlayer) {
-                            this.syncScore(enemy.type, enemy.score);
-                        }
+                        // score sync is now handled by throttled syncStats()
                     }
 
                     break;
@@ -282,12 +312,7 @@ export class Game {
                     player.takeDamage(enemy.damage);
                     audioManager.play('playerHit');
 
-                    // Sync HP if local player
-                    if (player === this.localPlayer) {
-                        this.syncHP();
-                        this.syncDamage(enemy.damage);
-                    }
-
+                    // HP sync is now handled by throttled syncStats()
                     break;
                 }
             }
@@ -299,8 +324,9 @@ export class Game {
      * @param {Enemy} enemy - Enemy that reached bottom
      */
     handleEnemyReachedBottom(enemy) {
-        // Implement via networking module
-        // This would call updateTeamScore from realtime.js
+        if (this.roomCode !== 'local') {
+            updateTeamScore(this.roomCode, CONFIG.SCORING.ENEMY_BOTTOM_PENALTY);
+        }
         console.log('Enemy reached bottom, team penalty:', CONFIG.SCORING.ENEMY_BOTTOM_PENALTY);
     }
 
@@ -308,37 +334,30 @@ export class Game {
      * Sync local player position to server
      */
     syncPositionToServer() {
-        if (!this.localPlayer) return;
-        // This would call updatePlayerPosition from realtime.js
-        // Implementation in networking/syncManager.js
+        if (!this.localPlayer || this.roomCode === 'local') return;
+        updatePlayerPosition(this.roomCode, this.currentUser.uid, {
+            x: this.localPlayer.x,
+            y: this.localPlayer.y
+        });
     }
 
     /**
-     * Sync local player score to server
-     * @param {string} enemyType - Enemy type killed
-     * @param {number} score - Score earned
+     * Batch sync for stats (score, kills, hp, damageTaken)
      */
-    syncScore(enemyType, score) {
-        // This would call updatePlayerScore from realtime.js
-        console.log('Score sync:', enemyType, score);
-    }
+    syncStatsToServer() {
+        if (!this.localPlayer || this.roomCode === 'local') return;
 
-    /**
-     * Sync local player HP to server
-     */
-    syncHP() {
-        if (!this.localPlayer) return;
-        // This would call updatePlayerHP from realtime.js
-        console.log('HP sync:', this.localPlayer.hp);
-    }
+        // Use a generic update for the entire player object in the room
+        // to minimize individual update calls
+        const updates = {
+            score: this.localPlayer.score,
+            hp: Math.max(0, Math.ceil(this.localPlayer.hp)),
+            kills: { ...this.localPlayer.kills },
+            damageTaken: this.localPlayer.damageTaken
+        };
 
-    /**
-     * Sync damage taken to server
-     * @param {number} damage - Damage amount
-     */
-    syncDamage(damage) {
-        // This would call updatePlayerDamage from realtime.js
-        console.log('Damage sync:', damage);
+        // We use the base database ref to do a single update
+        database.ref(`rooms/${this.roomCode}/players/${this.currentUser.uid}`).update(updates);
     }
 
     /**
@@ -389,5 +408,13 @@ export class Game {
         // Update stats
         if (data.hp !== undefined) player.hp = data.hp;
         if (data.score !== undefined) player.score = data.score;
+
+        // Update kills and damage
+        if (data.kills) {
+            player.kills = { ...data.kills };
+        }
+        if (data.damageTaken !== undefined) {
+            player.damageTaken = data.damageTaken;
+        }
     }
 }

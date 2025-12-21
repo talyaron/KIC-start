@@ -1,6 +1,6 @@
 // Firebase Authentication Module
 
-import { auth } from './config.js';
+import firebase, { auth } from './config.js';
 import { createUserProfile, getUserProfile } from './firestore.js';
 import { showToast } from '../utils/helpers.js';
 
