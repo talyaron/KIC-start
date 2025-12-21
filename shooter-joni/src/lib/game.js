@@ -22,17 +22,10 @@ export class GameEngine {
         this.lastTime = 0;
         this.paused = false;
 
-        // Assets
-        this.assets = {
-            spaceship: this.loadImage('/assets/spaceship.png'),
-            alien1: this.loadImage('/assets/alien_1.png'),
-            alien2: this.loadImage('/assets/alien_2.png'),
-            alien3: this.loadImage('/assets/alien_3.png'),
-            star: this.loadImage('/assets/star.png')
-        };
-        this.processedAssets = {}; // { key: processedCanvas }
-
-        this.tintedShipCache = {}; // { color: canvas }
+        // Assets - move processing to onload to avoid lag
+        this.assets = {};
+        this.processedAssets = {}; // { key: canvas }
+        this.loadGameAssets();
 
         // Audio
         this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -59,6 +52,29 @@ export class GameEngine {
             });
         }
         return stars;
+    }
+
+    loadGameAssets() {
+        const sources = {
+            spaceship: '/assets/spaceship.png',
+            alien1: '/assets/alien_1.png',
+            alien2: '/assets/alien_2.png',
+            alien3: '/assets/alien_3.png',
+            star: '/assets/star.png'
+        };
+
+        Object.entries(sources).forEach(([key, src]) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.src = src;
+            img.onload = () => {
+                console.log(`Asset loaded: ${key}`);
+                this.processedAssets[key] = this.processAsset(img, key === 'spaceship' ? 128 : 256);
+                // Clear cache if spaceship loaded late
+                if (key === 'spaceship') this.tintedShipCache = {};
+            };
+            this.assets[key] = img;
+        });
     }
 
     playSound(type) {
@@ -126,13 +142,8 @@ export class GameEngine {
     }
 
     loadImage(src) {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.src = src;
-        img.onload = () => {
-            console.log('Loaded asset:', src);
-        };
-        return img;
+        // Obsolete, handled in loadGameAssets now
+        return null;
     }
 
     addParticles(x, y, color, count = 10) {
@@ -148,37 +159,37 @@ export class GameEngine {
         }
     }
 
-    processAsset(img) {
+    processAsset(img, targetSize = 256) {
         if (!img.complete || img.naturalWidth <= 0) return null;
 
+        // Performance: downscale images immediately
         const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
+        const ratio = img.naturalHeight / img.naturalWidth;
+        canvas.width = targetSize;
+        canvas.height = targetSize * ratio;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageData.data;
 
-        // Chromakey: Kill ANYTHING white-ish, light grey (checkerboard), or purely black
-        // Checkerboards are usually alternations of very light grey and white.
+        // More aggressive chromakey
         for (let i = 0; i < data.length; i += 4) {
             const r = data[i];
             const g = data[i + 1];
             const b = data[i + 2];
 
-            // Aggressive white/grey removal:
-            // If R, G, B are all high (light colors) and close to each other (grey/white)
             const maxVal = Math.max(r, g, b);
             const minVal = Math.min(r, g, b);
             const diff = maxVal - minVal;
 
-            if (maxVal > 180 && diff < 30) {
+            // Kill white, light grey, and checkerboard grey
+            if (maxVal > 150 && diff < 40) {
                 data[i + 3] = 0;
             }
 
-            // Also pure black backgrounds
-            if (maxVal < 20) {
+            // Kill near black
+            if (maxVal < 30) {
                 data[i + 3] = 0;
             }
         }
@@ -187,36 +198,33 @@ export class GameEngine {
     }
 
     getTintedShip(color) {
-        const ship = this.assets.spaceship;
-        if (!ship.complete || ship.naturalWidth <= 0) return null;
+        const shipCanvas = this.processedAssets['spaceship'];
+        if (!shipCanvas) return null;
         if (this.tintedShipCache[color]) return this.tintedShipCache[color];
-
-        const processed = this.processAsset(ship);
-        if (!processed) return null;
 
         const offscreen = document.createElement('canvas');
         offscreen.width = 60;
         offscreen.height = 60;
         const octx = offscreen.getContext('2d');
 
-        // Draw processed ship
-        octx.drawImage(processed, 0, 0, 60, 60);
+        // Draw downscaled processed ship
+        octx.drawImage(shipCanvas, 0, 0, 60, 60);
 
-        // Tint (Multiply blend)
+        // Tint
         octx.globalCompositeOperation = 'source-atop';
         octx.fillStyle = color;
         octx.globalAlpha = 0.5;
         octx.fillRect(0, 0, 60, 60);
         octx.globalAlpha = 1.0;
 
-        // Add Glow
+        // Glow
         octx.globalCompositeOperation = 'destination-over';
         octx.shadowBlur = 15;
         octx.shadowColor = color;
         octx.fillStyle = color;
         octx.globalAlpha = 0.3;
         octx.beginPath();
-        octx.arc(30, 30, 20, 0, Math.PI * 2);
+        octx.arc(30, 30, 22, 0, Math.PI * 2);
         octx.fill();
         octx.globalAlpha = 1.0;
 
@@ -382,8 +390,9 @@ export class GameEngine {
                 // Randomly spawn size 1, 2, or 3
                 const roll = Math.random();
                 let size = 1;
-                if (roll > 0.9) size = 3;
-                else if (roll > 0.7) size = 2;
+                if (roll > 0.8) size = 3; // 20% Mothership
+                else if (roll > 0.5) size = 2; // 30% Cruiser
+                // else size = 1 // 50% Scout
 
                 this.enemies.push({
                     id: Date.now() + Math.random(),
@@ -507,6 +516,11 @@ export class GameEngine {
         }
     }
 
+    drawEnemyFallback(e) {
+        this.ctx.fillStyle = e.size === 3 ? '#ff00ff' : e.size === 2 ? '#ff8800' : '#00ff00';
+        this.ctx.fillRect(e.x, e.y, e.width, e.height);
+    }
+
     draw() {
         this.ctx.save();
         if (this.shake > 0) {
@@ -560,30 +574,23 @@ export class GameEngine {
 
         // Draw Enemies
         this.enemies.forEach(e => {
-            const rawAsset = this.assets['alien' + (e.size || 1)];
-            if (rawAsset && rawAsset.complete && rawAsset.naturalWidth > 0) {
-                const cacheKey = 'processed_alien_' + e.size;
-                if (!this.processedAssets[cacheKey]) {
-                    this.processedAssets[cacheKey] = this.processAsset(rawAsset);
-                }
-                const imgToDraw = this.processedAssets[cacheKey] || rawAsset;
+            const processed = this.processedAssets['alien' + (e.size || 1)];
 
+            if (processed) {
                 try {
                     if (e.size === 3) {
                         this.ctx.save();
                         this.ctx.filter = 'hue-rotate(90deg) brightness(1.2)';
-                        this.ctx.drawImage(imgToDraw, e.x, e.y, e.width, e.height);
+                        this.ctx.drawImage(processed, e.x, e.y, e.width, e.height);
                         this.ctx.restore();
                     } else {
-                        this.ctx.drawImage(imgToDraw, e.x, e.y, e.width, e.height);
+                        this.ctx.drawImage(processed, e.x, e.y, e.width, e.height);
                     }
-                } catch (e) {
-                    this.ctx.fillStyle = e.size === 3 ? '#ff00ff' : e.size === 2 ? '#ff8800' : '#00ff00';
-                    this.ctx.fillRect(e.x, e.y, e.width, e.height);
+                } catch (err) {
+                    this.drawEnemyFallback(e);
                 }
             } else {
-                this.ctx.fillStyle = e.size === 3 ? '#ff00ff' : e.size === 2 ? '#ff8800' : '#00ff00';
-                this.ctx.fillRect(e.x, e.y, e.width, e.height);
+                this.drawEnemyFallback(e);
             }
 
             // HP Bar for elite aliens
