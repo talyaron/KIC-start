@@ -67,6 +67,9 @@ export class GameEngine {
 
     playSound(type) {
         if (!this.audioCtx) return;
+        if (this.audioCtx.state === 'suspended') {
+            this.audioCtx.resume();
+        }
         const oscillator = this.audioCtx.createOscillator();
         const gainNode = this.audioCtx.createGain();
 
@@ -139,31 +142,68 @@ export class GameEngine {
         }
     }
 
+    processAsset(img) {
+        if (!img.complete) return null;
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+
+        // Chromakey/Background Removal: Kill white-ish or grey-ish backgrounds
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+
+            // If it's very white or very light grey (checkerboard backgrounds are usually grey)
+            if (r > 200 && g > 200 && b > 200) {
+                data[i + 3] = 0; // Transparent
+            }
+            // If it's purely black (sometimes helpful for space assets)
+            if (r < 15 && g < 15 && b < 15) {
+                data[i + 3] = 0;
+            }
+        }
+        ctx.putImageData(imageData, 0, 0);
+        return canvas;
+    }
+
     getTintedShip(color) {
         if (!this.assets.spaceship.complete) return null;
         if (this.tintedShipCache[color]) return this.tintedShipCache[color];
+
+        const processed = this.processAsset(this.assets.spaceship);
+        if (!processed) return null;
 
         const offscreen = document.createElement('canvas');
         offscreen.width = 60;
         offscreen.height = 60;
         const octx = offscreen.getContext('2d');
 
-        // Draw ship
-        octx.drawImage(this.assets.spaceship, 0, 0, 60, 60);
+        // Draw processed ship
+        octx.drawImage(processed, 0, 0, 60, 60);
 
         // Tint (Multiply blend)
         octx.globalCompositeOperation = 'source-atop';
         octx.fillStyle = color;
-        octx.globalAlpha = 0.4; // Subtle tint to keep detail
+        octx.globalAlpha = 0.5;
         octx.fillRect(0, 0, 60, 60);
         octx.globalAlpha = 1.0;
 
         // Add Glow
         octx.globalCompositeOperation = 'destination-over';
-        octx.shadowBlur = 10;
+        octx.shadowBlur = 15;
         octx.shadowColor = color;
         octx.fillStyle = color;
-        octx.fillRect(10, 10, 40, 40); // Internal glow block
+        octx.globalAlpha = 0.3;
+        octx.beginPath();
+        octx.arc(30, 30, 20, 0, Math.PI * 2);
+        octx.fill();
+        octx.globalAlpha = 1.0;
 
         this.tintedShipCache[color] = offscreen;
         return offscreen;
@@ -243,6 +283,7 @@ export class GameEngine {
     tryShoot(myUid) {
         if (this.paused) return null;
         const now = Date.now();
+        const lastShoot = this.lastShootTimes[myUid] || 0;
         const boost = this.playerBoosts[myUid];
         const delay = boost && boost.type === 'speed' ? 120 : 250;
 
@@ -500,15 +541,22 @@ export class GameEngine {
 
         // Draw Enemies
         this.enemies.forEach(e => {
-            const asset = this.assets['alien' + (e.size || 1)];
-            if (asset && asset.complete) {
+            const rawAsset = this.assets['alien' + (e.size || 1)];
+            if (rawAsset && rawAsset.complete) {
+                // Remove background on-the-fly or cache it
+                const cacheKey = 'processed_alien_' + e.size;
+                if (!this.tintedShipCache[cacheKey]) {
+                    this.tintedShipCache[cacheKey] = this.processAsset(rawAsset);
+                }
+                const processed = this.tintedShipCache[cacheKey];
+
                 if (e.size === 3) {
                     this.ctx.save();
                     this.ctx.filter = 'hue-rotate(90deg) brightness(1.2)';
-                    this.ctx.drawImage(asset, e.x, e.y, e.width, e.height);
+                    this.ctx.drawImage(processed || rawAsset, e.x, e.y, e.width, e.height);
                     this.ctx.restore();
                 } else {
-                    this.ctx.drawImage(asset, e.x, e.y, e.width, e.height);
+                    this.ctx.drawImage(processed || rawAsset, e.x, e.y, e.width, e.height);
                 }
             } else {
                 this.ctx.fillStyle = e.size === 3 ? '#ff00ff' : e.size === 2 ? '#ff8800' : '#00ff00';
