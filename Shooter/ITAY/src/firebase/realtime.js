@@ -101,6 +101,10 @@ export async function createRoom(host) {
         ]);
 
         console.log(`✅ [RTDB] Room ${roomCode} created successfully`);
+
+        // Cleanup on host disconnect
+        database.ref(`rooms/${roomCode}`).onDisconnect().remove();
+
         return roomCode;
     } catch (error) {
         console.error('❌ [RTDB] Create room error:', error);
@@ -134,6 +138,12 @@ export async function joinRoom(roomCode, user) {
         throw new Error('Game already in progress');
     }
 
+    // Check if player is already in the room (avoid duplicates)
+    if (room.players && room.players[user.uid]) {
+        console.log('👤 Player already in room, effectively joined');
+        return;
+    }
+
     // Add player to room
     const playerData = {
         userCode: user.userCode,
@@ -148,7 +158,11 @@ export async function joinRoom(roomCode, user) {
         survivalTime: 0,
     };
 
-    await roomRef.child(`players/${user.uid}`).set(playerData);
+    const playerRef = roomRef.child(`players/${user.uid}`);
+    await playerRef.set(playerData);
+
+    // Automatic cleanup if player disconnects
+    playerRef.onDisconnect().remove();
 }
 
 /**

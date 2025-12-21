@@ -109,8 +109,8 @@ class App {
         }
     }
 
-    async handleStartGame(roomCode, roomData, isHost) {
-        console.log('🎮 Starting game...', { roomCode, isHost });
+    async handleStartGame(roomCode, roomData, playerUid, isHost) {
+        console.log('🎮 Starting game...', { roomCode, isHost, playerUid });
 
         // Hide lobby
         this.screens.lobby.hide();

@@ -4,6 +4,15 @@ import { useAuth } from './AuthContext';
 import { db } from '../lib/firebase';
 import { ref, set, onValue, update, get } from 'firebase/database';
 
+const PLAYER_COLORS = [
+    '#00f0ff', // Cyan
+    '#ff0055', // Pink
+    '#00ff9d', // Green
+    '#ffaa00', // Orange
+    '#cc00ff', // Purple
+    '#ffff00'  // Yellow
+];
+
 export default function Lobby() {
     const { mode, id } = useParams();
     const { user, userData } = useAuth();
@@ -33,7 +42,7 @@ export default function Lobby() {
                             hp: 100,
                             x: 200,
                             y: 500,
-                            color: '#0000ff'
+                            color: PLAYER_COLORS[0]
                         }
                     }
                 });
@@ -72,13 +81,22 @@ export default function Lobby() {
             // Add self to players if not host
             if (!isHost) {
                 const playerRef = ref(db, `rooms/${roomId}/players/${user.uid}`);
-                update(playerRef, {
-                    displayName: userData.displayName,
-                    hp: 100,
-                    x: 200,
-                    y: 500,
-                    ready: true
-                }).catch(e => console.error("Error joining:", e));
+
+                // Get current players to find a free color
+                get(ref(db, `rooms/${roomId}/players`)).then(snap => {
+                    const currentPlayers = snap.val() || {};
+                    const takenColors = Object.values(currentPlayers).map(p => p.color);
+                    const availableColor = PLAYER_COLORS.find(c => !takenColors.includes(c)) || PLAYER_COLORS[0];
+
+                    update(playerRef, {
+                        displayName: userData.displayName,
+                        hp: 100,
+                        x: 200 + Math.random() * 200,
+                        y: 500,
+                        ready: true,
+                        color: availableColor
+                    }).catch(e => console.error("Error joining:", e));
+                });
             }
 
             return () => {

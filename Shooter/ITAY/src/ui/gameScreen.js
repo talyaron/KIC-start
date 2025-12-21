@@ -111,7 +111,9 @@ export class GameScreen {
 
     checkGameOver() {
         if (!this.currentGame || !this.currentGame.localPlayer) return;
-        if (this.currentGame.localPlayer.isDead()) {
+
+        // End game if player is dead OR if the game loop was stopped (e.g. by server signal)
+        if (this.currentGame.localPlayer.isDead() || !this.currentGame.running) {
             this.endGame();
         }
     }

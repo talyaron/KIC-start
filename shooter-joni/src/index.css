@@ -116,10 +116,17 @@ button.danger {
     width: 100vw;
     height: 100vh;
     position: relative;
+    background-size: 200% 200%;
 }
 
 .neon-text {
-    text-shadow: 0 0 10px var(--accent-primary);
+    text-shadow: 0 0 10px var(--accent-primary), 0 0 20px var(--accent-primary);
+    animation: neonPulse 2s infinite ease-in-out;
+}
+
+@keyframes neonPulse {
+    0%, 100% { opacity: 1; text-shadow: 0 0 10px var(--accent-primary), 0 0 20px var(--accent-primary); }
+    50% { opacity: 0.8; text-shadow: 0 0 5px var(--accent-primary), 0 0 10px var(--accent-primary); }
 }
 
 input {
