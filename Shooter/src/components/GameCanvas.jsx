@@ -60,6 +60,14 @@ export default function GameCanvas() {
 
             if (data.players) {
                 engine.updatePlayers(data.players);
+
+                // Check for Death (Client Side)
+                const myPlayer = data.players[user.uid];
+                if (myPlayer && myPlayer.hp <= 0) {
+                    setGameOver(true);
+                    // Optional: Stop engine or removing listener?
+                    // engine.stop(); 
+                }
             }
 
             if (!engine.isHost) {

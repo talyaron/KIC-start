@@ -59,8 +59,12 @@ export default function Home() {
                 </div>
 
                 {/* Action Buttons */}
-                <div style={{ display: 'flex', gap: '20px', width: '100%', maxWidth: '500px' }}>
-                    <button style={{ flex: 1, padding: '20px', fontSize: '1.2rem' }} onClick={() => navigate('/lobby/create')}>
+                <div style={{ display: 'flex', gap: '20px', width: '100%', maxWidth: '500px', flexDirection: 'column' }}>
+                    <div style={{ background: 'rgba(0,0,0,0.5)', padding: '10px', borderRadius: '8px', fontSize: '0.9rem', color: '#aaa', textAlign: 'center' }}>
+                        To play with friends on other computers, send them your <b>Network URL</b>
+                        <br />(Check the terminal where you started the game!)
+                    </div>
+                    <button style={{ padding: '20px', fontSize: '1.2rem', width: '100%' }} onClick={() => navigate('/lobby/create')}>
                         Create Server
                     </button>
                 </div>
