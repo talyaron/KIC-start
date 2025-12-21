@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { GameEngine } from '../lib/game';
 import { db } from '../lib/firebase';
-import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { ref, update, onValue } from 'firebase/database';
 
 export default function GameCanvas() {
     const { roomId } = useParams();
@@ -21,7 +21,7 @@ export default function GameCanvas() {
     useEffect(() => {
         if (!user || !roomId) return;
 
-        const roomRef = doc(db, 'rooms', roomId);
+        const roomRef = ref(db, `rooms/${roomId}`);
         const canvas = canvasRef.current;
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
@@ -32,14 +32,18 @@ export default function GameCanvas() {
             (state) => {
                 // On State Update (Host Only)
                 if (state.type === 'UPDATE_STATE') {
-                    updateDoc(roomRef, {
+                    update(roomRef, {
                         enemies: state.enemies,
                         projectiles: state.projectiles
                     }).catch(() => { });
                 } else if (state.type === 'DAMAGE') {
                     const safeHp = (state.newHp !== undefined && state.newHp !== null) ? state.newHp : 50;
-                    updateDoc(roomRef, {
-                        [`players.${state.uid}.hp`]: safeHp
+                    update(roomRef, {
+                        [`players/${state.uid}/hp`]: safeHp
+                    }).catch(() => { });
+                } else if (state.type === 'SCORE_UPDATE') {
+                    update(roomRef, {
+                        [`players/${state.uid}/score`]: state.score
                     }).catch(() => { });
                 }
             },
@@ -50,8 +54,8 @@ export default function GameCanvas() {
         engineRef.current = engine;
 
         // Subscribe to Room Data
-        const unsub = onSnapshot(roomRef, (snapshot) => {
-            const data = snapshot.data();
+        const unsub = onValue(roomRef, (snapshot) => {
+            const data = snapshot.val();
             if (!data) return;
 
             if (data.host === user.uid) {
@@ -65,8 +69,6 @@ export default function GameCanvas() {
                 const myPlayer = data.players[user.uid];
                 if (myPlayer && myPlayer.hp <= 0) {
                     setGameOver(true);
-                    // Optional: Stop engine or removing listener?
-                    // engine.stop(); 
                 }
             }
 
@@ -97,38 +99,32 @@ export default function GameCanvas() {
         window.addEventListener('keydown', handleDown);
         window.addEventListener('keyup', handleUp);
 
-        // Sync Loop (10Hz for Firestore)
+        // Sync Loop (RTDB fast enough for 30Hz? Let's stick to 20Hz for safety but smoother)
         const inputInterval = setInterval(() => {
             const pos = engine.handleInput(keys.current, user.uid);
 
             if (pos) {
                 // Update Payload
+                // RTDB uses paths with slashes, not dots for nested updates usually, 
+                // BUT 'update' accepts paths like "a/b/c": val
                 const updatePayload = {
-                    [`players.${user.uid}.x`]: pos.x,
-                    [`players.${user.uid}.y`]: pos.y
+                    [`players/${user.uid}/x`]: pos.x,
+                    [`players/${user.uid}/y`]: pos.y
                 };
 
                 // Check Shoot
                 if (keys.current.shoot) {
                     const shootTs = engine.tryShoot(user.uid);
                     if (shootTs) {
-                        updatePayload[`players.${user.uid}.lastShoot`] = shootTs;
-                        // Also Add Local Projectile for immediate feedback (prediction)
-                        // But Host will also add it. We need to avoid dups?
-                        // GameEngine logic handles "updateProjectiles" which overrides local.
-                        // So local might flicker but it feels responsive.
-                        // Ideally we show local until server overrides.
-                        // For now, let's just send signal and let server auth handle it for consistency.
-                        // Or we can add it safely if we don't clear list instanty.
-                        // Let's just Add it:
+                        updatePayload[`players/${user.uid}/lastShoot`] = shootTs;
                         engine.addProjectile(pos.x + 20, pos.y, user.uid, '#00f0ff');
                     }
                 }
 
-                // Write to Firestore
-                updateDoc(roomRef, updatePayload).catch(() => { });
+                // Write to RTDB
+                update(roomRef, updatePayload).catch(() => { });
             }
-        }, 100); // 100ms = 10Hz
+        }, 50); // 50ms = 20Hz (Faster than Firestore!)
 
         return () => {
             engine.stop();
@@ -142,6 +138,17 @@ export default function GameCanvas() {
     return (
         <div className="full-screen" style={{ background: '#000' }}>
             <canvas ref={canvasRef} style={{ display: 'block' }} />
+
+            {/* HUD / Leaderboard */}
+            <div style={{ position: 'absolute', top: 10, right: 10, color: 'white', background: 'rgba(0,0,0,0.5)', padding: '10px', borderRadius: '5px' }}>
+                <h3>Scores</h3>
+                {engineRef.current && Object.values(engineRef.current.players).sort((a, b) => (b.score || 0) - (a.score || 0)).map((p, i) => (
+                    <div key={i} style={{ color: p.color || 'white' }}>
+                        {p.displayName || 'Guest'}: {p.score || 0}
+                    </div>
+                ))}
+            </div>
+
             {gameOver && (
                 <div style={{
                     position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',

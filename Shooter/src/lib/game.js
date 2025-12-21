@@ -153,7 +153,21 @@ export class GameEngine {
                         // Hit
                         this.enemies.splice(eIdx, 1);
                         this.projectiles.splice(pIdx, 1);
-                        // Award points todo
+
+                        // Award points
+                        if (this.players[p.ownerId]) {
+                            if (!this.players[p.ownerId].score) this.players[p.ownerId].score = 0;
+                            this.players[p.ownerId].score += 100;
+
+                            // Notify update
+                            if (this.onStateUpdate) {
+                                this.onStateUpdate({
+                                    type: 'SCORE_UPDATE',
+                                    uid: p.ownerId,
+                                    score: this.players[p.ownerId].score
+                                });
+                            }
+                        }
                     }
                 });
             });

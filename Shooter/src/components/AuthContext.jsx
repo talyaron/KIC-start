@@ -7,7 +7,7 @@ import {
     signOut
 } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { ref, get, set } from 'firebase/database';
 
 const AuthContext = createContext();
 
@@ -40,15 +40,16 @@ export function AuthProvider({ children }) {
     }, []);
 
     async function ensureUserData(currentUser) {
-        const userRef = doc(db, 'users', currentUser.uid);
+        // RTDB Path: users/uid
+        const userRef = ref(db, `users/${currentUser.uid}`);
         try {
-            console.log("AuthContext: Fetching user doc...");
-            const snapshot = await getDoc(userRef);
-            console.log("AuthContext: User doc exists?", snapshot.exists());
+            console.log("AuthContext: Fetching user data...");
+            const snapshot = await get(userRef);
+            console.log("AuthContext: User data exists?", snapshot.exists());
             if (snapshot.exists()) {
-                setUserData(snapshot.data());
+                setUserData(snapshot.val());
             } else {
-                console.log("AuthContext: Creating new user doc...");
+                console.log("AuthContext: Creating new user data...");
                 // Create new user entry
                 const friendId = Math.floor(100000 + Math.random() * 900000).toString();
                 const data = {
@@ -58,8 +59,8 @@ export function AuthProvider({ children }) {
                     friendId: friendId,
                     createdAt: Date.now()
                 };
-                await setDoc(userRef, data);
-                console.log("AuthContext: User doc created.");
+                await set(userRef, data);
+                console.log("AuthContext: User data created.");
                 setUserData(data);
             }
         } catch (error) {

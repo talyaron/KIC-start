@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getDatabase } from 'firebase/database';
 
 const firebaseConfig = {
     apiKey: "AIzaSyBC0L0Vl9xQ1ph2MK78K-W0_e2XYw3SbqI",
@@ -20,5 +20,5 @@ const analytics = getAnalytics(app);
 
 // Export services for the app to use
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = getDatabase(app); // Switched to RTDB
 export { analytics };
