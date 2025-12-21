@@ -16,6 +16,23 @@ class AudioManager {
         // In production, replace with actual audio files
 
         this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        // Resume context on user interaction
+        const resume = () => {
+            if (this.audioContext.state === 'suspended') {
+                this.audioContext.resume();
+            }
+            window.removeEventListener('click', resume);
+            window.removeEventListener('keydown', resume);
+        };
+        window.addEventListener('click', resume);
+        window.addEventListener('keydown', resume);
+    }
+
+    resumeContext() {
+        if (this.audioContext && this.audioContext.state === 'suspended') {
+            this.audioContext.resume();
+        }
     }
 
     /**

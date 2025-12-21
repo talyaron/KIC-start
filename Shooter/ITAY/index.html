@@ -24,6 +24,13 @@
 <body>
     <!-- Auth Screen -->
     <div id="auth-screen" class="screen active">
+        <div class="bg-decor">
+            <div class="cube" style="width: 80px; height: 80px; left: 10%; top: 20%;"></div>
+            <div class="cube" style="width: 120px; height: 120px; right: 15%; top: 10%; animation-delay: -5s;"></div>
+            <div class="cube" style="width: 60px; height: 60px; left: 20%; bottom: 15%; animation-delay: -10s;"></div>
+            <div class="cube" style="width: 90px; height: 90px; right: 25%; bottom: 20%; animation-delay: -15s;"></div>
+        </div>
+
         <div class="auth-container">
             <h1 class="game-title">SHOOTER</h1>
             <p class="game-subtitle">Multiplayer Combat Arena</p>
@@ -54,11 +61,23 @@
                     </svg>
                     Continue as Guest
                 </button>
+
+                <div id="reconnect-section"
+                    style="margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                    <div style="font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 0.5rem;">Have a
+                        Profile UID?</div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="uid-input" placeholder="Paste UID here"
+                            style="flex: 1; padding: 0.8rem; border-radius: 10px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; font-size: 0.8rem;">
+                        <button id="uid-login-btn" class="icon-btn-small"
+                            style="background: var(--color-accent-secondary); color: white; border-radius: 10px; padding: 0 1rem; font-weight: 700;">GO</button>
+                    </div>
+                </div>
             </div>
 
             <div id="auth-loading" class="loading-indicator hidden">
                 <div class="spinner"></div>
-                <p>Signing in...</p>
+                <p>Establishing connection...</p>
             </div>
 
             <div id="auth-error" class="error-message hidden"></div>

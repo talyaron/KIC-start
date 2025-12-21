@@ -1,4 +1,4 @@
-// Simplified Game Screen - Local Play
+// Premium Game HUD implementation
 
 import { Game } from '../game/Game.js';
 import { getUserProfile, updateGameStats } from '../firebase/firestore.js';
@@ -15,8 +15,6 @@ export class GameScreen {
     }
 
     async startGame(roomCode, roomData, currentUser, isHost) {
-        console.log('🎮 Game starting...', { roomCode, isHost });
-
         // Load user profile with upgrades
         const profile = await getUserProfile(currentUser.uid);
 
@@ -39,43 +37,59 @@ export class GameScreen {
 
     setupGameUI(roomData) {
         this.uiEl.innerHTML = `
-      <div class="game-hud">
-        <div class="score-display">
-          <div class="score-label">Your Score</div>
-          <div class="score-value" id="player-score">0</div>
-          <div class="team-score">Survival: <span id="survival-time">0:00</span></div>
-        </div>
-        
-        <div class="players-list">
-          <div class="player-hud-item">
-            <span class="player-hud-name">Health</span>
-            <span class="player-hud-hp" id="player-hp">100</span>
-          </div>
-          <div class="player-hud-item">
-            <span class="player-hud-name">Kills</span>
-            <span class="player-hud-hp" id="player-kills" style="color: var(--color-success);">0</span>
-          </div>
-        </div>
-      </div>
-    `;
+            <div class="premium-hud">
+                <div class="hud-top">
+                    <div class="hud-score-card">
+                        <div class="hud-label">SCORE</div>
+                        <div class="hud-value main" id="player-score">0</div>
+                    </div>
+                    <div class="hud-timer-card">
+                        <div class="hud-label">SURVIVAl</div>
+                        <div class="hud-value" id="survival-time">0:00</div>
+                    </div>
+                    <div class="hud-kills-card">
+                        <div class="hud-label">KILLS</div>
+                        <div class="hud-value success" id="player-kills">0</div>
+                    </div>
+                </div>
+                
+                <div class="hud-bottom">
+                    <div class="health-container">
+                        <div class="hp-header">
+                            <span class="hp-label">HEALTH</span>
+                            <span class="hp-count" id="player-hp">100</span>
+                        </div>
+                        <div class="hp-bar-outer">
+                            <div class="hp-bar-inner" id="hp-fill"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     updateGameUI() {
         if (!this.currentGame || !this.currentGame.localPlayer) return;
 
         const player = this.currentGame.localPlayer;
+        const maxHp = player.maxHp || 100;
 
         // Update score
         const scoreEl = document.getElementById('player-score');
         if (scoreEl) scoreEl.textContent = player.score;
 
         // Update HP
-        const hpEl = document.getElementById('player-hp');
-        if (hpEl) {
-            hpEl.textContent = Math.ceil(player.hp);
-            hpEl.className = 'player-hud-hp';
-            if (player.hp < 30) hpEl.classList.add('critical');
-            else if (player.hp < 60) hpEl.classList.add('low');
+        const hpCountEl = document.getElementById('player-hp');
+        const hpFillEl = document.getElementById('hp-fill');
+        if (hpCountEl && hpFillEl) {
+            const currentHp = Math.max(0, Math.ceil(player.hp));
+            hpCountEl.textContent = currentHp;
+            const percent = (currentHp / maxHp) * 100;
+            hpFillEl.style.width = `${percent}%`;
+
+            if (percent < 30) hpFillEl.style.background = 'var(--color-error)';
+            else if (percent < 60) hpFillEl.style.background = 'var(--color-warning)';
+            else hpFillEl.style.background = 'var(--color-success)';
         }
 
         // Update kills
@@ -97,10 +111,7 @@ export class GameScreen {
 
     checkGameOver() {
         if (!this.currentGame || !this.currentGame.localPlayer) return;
-
-        const player = this.currentGame.localPlayer;
-
-        if (player.isDead()) {
+        if (this.currentGame.localPlayer.isDead()) {
             this.endGame();
         }
     }
@@ -108,27 +119,15 @@ export class GameScreen {
     async endGame() {
         if (!this.currentGame) return;
 
-        // Stop game
         this.currentGame.stop();
 
-        // Clear intervals
-        if (this.updateInterval) {
-            clearInterval(this.updateInterval);
-            this.updateInterval = null;
-        }
-        if (this.checkGameOverInterval) {
-            clearInterval(this.checkGameOverInterval);
-            this.checkGameOverInterval = null;
-        }
+        if (this.updateInterval) clearInterval(this.updateInterval);
+        if (this.checkGameOverInterval) clearInterval(this.checkGameOverInterval);
 
-        // Calculate survival time
         const survivalTime = Math.floor((Date.now() - this.gameStartTime) / 1000);
-
-        // Get player stats
         const player = this.currentGame.localPlayer;
         const totalKills = player.kills.red + player.kills.yellow + player.kills.blue;
 
-        // Save stats to Firebase
         await updateGameStats(this.currentGame.currentUser.uid, {
             totalKills: totalKills,
             redKills: player.kills.red,
@@ -136,10 +135,9 @@ export class GameScreen {
             blueKills: player.kills.blue,
             score: player.score,
             survivalTime: survivalTime,
-            currencyEarned: Math.floor(player.score / 10) // 10% of score as currency
+            currencyEarned: Math.floor(player.score / 10)
         });
 
-        // Prepare stats for end screen
         const stats = {};
         stats[this.currentGame.currentUser.uid] = {
             displayName: player.displayName || 'Player',
@@ -149,7 +147,6 @@ export class GameScreen {
             survivalTime: survivalTime
         };
 
-        // Show end screen
         this.onGameEnd(stats);
     }
 
@@ -158,16 +155,8 @@ export class GameScreen {
             this.currentGame.stop();
             this.currentGame = null;
         }
-
-        if (this.updateInterval) {
-            clearInterval(this.updateInterval);
-            this.updateInterval = null;
-        }
-
-        if (this.checkGameOverInterval) {
-            clearInterval(this.checkGameOverInterval);
-            this.checkGameOverInterval = null;
-        }
+        if (this.updateInterval) clearInterval(this.updateInterval);
+        if (this.checkGameOverInterval) clearInterval(this.checkGameOverInterval);
     }
 
     show() {
