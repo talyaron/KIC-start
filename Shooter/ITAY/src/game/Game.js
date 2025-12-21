@@ -60,7 +60,12 @@ export class Game {
         if (this.roomCode === 'local') return;
 
         this.unsubscribeRoom = onRoomChange(this.roomCode, (roomData) => {
-            if (!roomData || !this.running) return;
+            // Handle game end signal
+            if (roomData.status === 'ended' && this.running) {
+                console.log('🏁 Game end signal received from server');
+                this.stop();
+                return;
+            }
 
             // Update other players
             Object.keys(roomData.players || {}).forEach(uid => {
@@ -69,7 +74,7 @@ export class Game {
                 }
             });
 
-            // Update team score if needed
+            // Update team score
             this.teamScore = roomData.teamScore || 0;
         });
     }
@@ -214,15 +219,11 @@ export class Game {
             this.syncStats();
         }
 
-        // Update all players
-        for (const player of this.players.values()) {
-            if (player !== this.localPlayer) {
-                player.update(this.canvas.width, this.canvas.height);
-            }
-        }
+        // NOTE: Remote players skip local physics (gravity/jumping) to prevent jitter.
+        // They are updated via setupNetworkListeners -> updatePlayerFromServer.
 
-        // Spawn enemies (host only)
-        if (this.isHost && this.spawner) {
+        // Spawn enemies (Deterministic for all players via matchSeed)
+        if (this.spawner) {
             this.spawner.spawn(this.enemies, currentTime);
         }
 
@@ -398,10 +399,21 @@ export class Game {
      * @param {Object} data - Player data
      */
     updatePlayerFromServer(uid, data) {
-        const player = this.players.get(uid);
-        if (!player || player === this.localPlayer) return;
+        let player = this.players.get(uid);
 
-        // Update position
+        // Dynamically add player if they join late or were missed at start
+        if (!player) {
+            console.log(`👤 Adding new player found in room: ${uid}`);
+            // Use provided coordinates or default to middle ground
+            const x = data.x !== undefined ? data.x : this.canvas.width / 2;
+            const y = data.y !== undefined ? data.y : this.canvas.height - 150;
+            player = new Player(uid, x, y);
+            this.players.set(uid, player);
+        }
+
+        if (player === this.localPlayer) return;
+
+        // Update position smoothly
         if (data.x !== undefined) player.x = data.x;
         if (data.y !== undefined) player.y = data.y;
 
@@ -409,12 +421,9 @@ export class Game {
         if (data.hp !== undefined) player.hp = data.hp;
         if (data.score !== undefined) player.score = data.score;
 
-        // Update kills and damage
+        // Update kills
         if (data.kills) {
             player.kills = { ...data.kills };
-        }
-        if (data.damageTaken !== undefined) {
-            player.damageTaken = data.damageTaken;
         }
     }
 }
