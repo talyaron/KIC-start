@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Nature Defender: Forest Siege</title>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;800&family=Poppins:wght@400;600&display=swap"
+        rel="stylesheet">
+
+    <!-- Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --primary: #55efc4;
+            --secondary: #00b894;
+            --accent: #ffeaa7;
+            --dark: #2d3436;
+            --glass: rgba(255, 255, 255, 0.9);
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #81ecec;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .screen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        /* High-End Components */
+        .card {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0, 184, 148, 0.2);
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            animation: fadeIn 0.5s ease-out;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--secondary);
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 10px rgba(0, 184, 148, 0.2);
+        }
+
+        h2 {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--dark);
+            margin: 0;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 50px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.1rem;
+            cursor: pointer;
+            margin: 10px;
+            width: 100%;
+            box-shadow: 0 5px 15px rgba(0, 184, 148, 0.3);
+            transition: transform 0.2s, filter 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.1);
+        }
+
+        .btn.secondary {
+            background: white;
+            color: var(--secondary);
+            border: 2px solid var(--secondary);
+        }
+
+        .btn.warning {
+            background: linear-gradient(135deg, #ff7675, #d63031);
+            box-shadow: 0 5px 15px rgba(214, 48, 49, 0.3);
+        }
+
+        .input-group {
+            position: relative;
+            width: 100%;
+            margin: 10px 0;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            border-radius: 12px;
+            border: 2px solid #ddd;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        /* HUD */
+        #game-hud {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .hud-scan {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-family: 'Orbitron';
+            color: white;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .hud-score {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            font-size: 2rem;
+            font-family: 'Orbitron';
+            color: white;
+            font-weight: 800;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        #countdown-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 8rem;
+            font-family: 'Orbitron';
+            color: white;
+            text-shadow: 0 0 20px var(--secondary);
+            display: none;
+            animation: pulse 1s infinite;
+        }
+
+        /* Footer */
+        .footer-dock {
+            position: absolute;
+            bottom: 20px;
+            display: flex;
+            gap: 15px;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px 30px;
+            border-radius: 50px;
+        }
+
+        .dock-icon {
+            width: 40px;
+            height: 40px;
+            background: #dfe6e9;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #636e72;
+            cursor: pointer;
+        }
+
+        .dock-icon:hover {
+            background: var(--secondary);
+            color: white;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            50% {
+                transform: translate(-50%, -50%) scale(1.1);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="ui-layer">
+        <!-- Auth -->
+        <div id="screen-auth" class="screen active">
+            <div class="card">
+                <h1>NATURE DEFENDER</h1>
+                <p>Sacred Forest Siege</p>
+                <button class="btn" onclick="App.loginGoogle()">GOOGLE SIGN IN</button>
+                <button class="btn secondary" onclick="App.loginGuest()">PLAY AS GUEST</button>
+            </div>
+        </div>
+
+        <!-- Menu/Lobby -->
+        <div id="screen-menu" class="screen">
+            <!-- Profile Header -->
+            <div style="position: absolute; top: 20px; left: 20px; text-align: left;">
+                <h2 id="user-name">Loading...</h2>
+                <div style="font-size: 0.9rem; color: #636e72;" id="user-stats">ID: --- | HIGH SCORE: 0</div>
+            </div>
+
+            <div class="card" style="margin-top: 50px;">
+                <h2 style="color:var(--secondary)">FOREST STAGE 1</h2>
+                <div
+                    style="height: 100px; background: #b0fceb; border-radius: 12px; margin: 15px 0; display:flex; align-items:center; justify-content:center; color:#00b894; font-weight:bold;">
+                    <!-- Placeholder for Stage Preview Image -->
+                    <span>LIVE ZONE PREVIEW</span>
+                </div>
+
+                <button class="btn" onclick="App.quickPlay()">QUICK PLAY</button>
+                <button class="btn secondary" onclick="App.createRoom()">CREATE PRIVATE ROOM</button>
+
+                <div class="input-group">
+                    <input type="text" id="inp-room" placeholder="ENTER ROOM ID" maxlength="6">
+                </div>
+                <button class="btn secondary" style="padding: 10px;" onclick="App.joinRoom()">JOIN BY ID</button>
+            </div>
+
+            <div class="footer-dock">
+                <div class="dock-icon">🛒</div>
+                <div class="dock-icon">👕</div>
+                <div class="dock-icon">⚡</div>
+                <div class="dock-icon">👥</div>
+            </div>
+        </div>
+
+        <!-- Room Wait -->
+        <div id="screen-room" class="screen">
+            <div class="card">
+                <h2>SQUAD PREP</h2>
+                <h1 id="room-code-disp">000000</h1>
+                <div id="player-list" style="text-align: left; margin: 20px 0; min-height: 80px;"></div>
+                <button id="btn-start" class="btn disabled" onclick="App.startGame()">START MISSION</button>
+                <button class="btn warning" onclick="location.reload()">LEAVE</button>
+            </div>
+        </div>
+
+        <!-- Game Over -->
+        <div id="screen-results" class="screen">
+            <div class="card">
+                <h1>MISSION REPORT</h1>
+                <table style="width:100%; text-align:left; margin-bottom:20px;">
+                    <thead>
+                        <tr style="color:#636e72;">
+                            <th>ID</th>
+                            <th>KILLS</th>
+                            <th>STATUS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-body"></tbody>
+                </table>
+                <button class="btn" onclick="location.reload()">PLAY AGAIN</button>
+                <button class="btn secondary" onclick="location.reload()">EXIT TO MENU</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- HUD -->
+    <div id="game-hud">
+        <div class="hud-scan">
+            ID: <span id="hud-id">---</span><br>
+            HP: <span id="hud-hp">100</span>%
+        </div>
+        <div class="hud-score">SCORE: <span id="hud-score">0</span></div>
+        <div id="countdown-overlay">5</div>
+    </div>
+
+    <!-- Canvas -->
+    <div id="game-canvas"></div>
+
+    <script>
+        // --- CONFIG ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyB714P_E1XF6ce4WOVvo-EhDnSS4isQHWw",
+            authDomain: "kyc-dan.firebaseapp.com",
+            projectId: "kyc-dan",
+            storageBucket: "kyc-dan.firebasestorage.app",
+            messagingSenderId: "332101643338",
+            appId: "1:332101643338:web:68d379b1c62d025a7c8ab3",
+            measurementId: "G-0HB5M20RKM"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // --- APP CONTROLLER ---
+        const App = {
+            user: null,
+            roomId: null,
+            isHost: false,
+
+            init: () => {
+                auth.onAuthStateChanged(u => {
+                    if (u) {
+                        App.user = u;
+                        App.show('screen-menu');
+                        document.getElementById('user-name').innerText = u.displayName || "Ranger";
+                        document.getElementById('user-stats').innerText = `ID: ${u.uid.substring(0, 6)} | HIGH SCORE: --`;
+                        document.getElementById('hud-id').innerText = u.uid.substring(0, 6);
+                    } else {
+                        App.show('screen-auth');
+                    }
+                    // Start Background Effects
+                    if (!Game.game) Game.initMenuMode();
+                });
+            },
+
+            loginGoogle: () => auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()),
+            loginGuest: () => auth.signInAnonymously(),
+
+            show: (id) => {
+                document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+                document.getElementById(id).classList.add('active');
+            },
+
+            quickPlay: async () => {
+                // Find any waiting room
+                const snap = await db.collection('rooms').where('status', '==', 'waiting').limit(1).get();
+                if (!snap.empty) {
+                    App.roomId = snap.docs[0].id;
+                    App.joinRoomLogic(App.roomId);
+                } else {
+                    App.createRoom();
+                }
+            },
+
+            createRoom: async () => {
+                const code = Math.floor(100000 + Math.random() * 900000).toString();
+                App.roomId = code;
+                App.isHost = true;
+
+                await db.collection('rooms').doc(code).set({
+                    hostId: App.user.uid,
+                    status: 'waiting',
+                    score: 0,
+                    createdAt: Date.now()
+                });
+                App.joinRoomLogic(code);
+            },
+
+            joinRoom: () => {
+                const code = document.getElementById('inp-room').value;
+                if (code.length === 6) {
+                    App.roomId = code;
+                    App.joinRoomLogic(code);
+                } else alert("Invalid ID");
+            },
+
+            joinRoomLogic: async (code) => {
+                App.show('screen-room');
+                document.getElementById('room-code-disp').innerText = code;
+
+                await db.collection('rooms').doc(code).collection('players').doc(App.user.uid).set({
+                    uid: App.user.uid,
+                    name: App.user.uid.substring(0, 6),
+                    hp: 100,
+                    kills: 0,
+                    dead: false,
+                    x: 400, y: 600
+                });
+
+                // Listeners
+                db.collection('rooms').doc(code).onSnapshot(d => {
+                    const data = d.data();
+                    if (data.status === 'countdown') Game.startCountdown();
+                    if (data.status === 'finished') App.endGame();
+                    if (data.score !== undefined) document.getElementById('hud-score').innerText = data.score;
+                });
+
+                db.collection('rooms').doc(code).collection('players').onSnapshot(snap => {
+                    const list = document.getElementById('player-list');
+                    list.innerHTML = '';
+                    snap.forEach(d => {
+                        const p = d.data();
+                        list.innerHTML += `<div>⚔️ ${p.name} ${p.uid === App.user.uid ? '(YOU)' : ''}</div>`;
+                    });
+                    if (App.isHost) document.getElementById('btn-start').classList.remove('disabled');
+                });
+            },
+
+            startGame: () => {
+                db.collection('rooms').doc(App.roomId).update({ status: 'countdown' });
+            },
+
+            endGame: async () => {
+                Game.stop();
+                App.show('screen-results');
+                document.getElementById('game-hud').style.display = 'none';
+
+                const snap = await db.collection('rooms').doc(App.roomId).collection('players').get();
+                const tbody = document.getElementById('results-body');
+                tbody.innerHTML = '';
+                snap.forEach(d => {
+                    const p = d.data();
+                    tbody.innerHTML += `<tr><td>${p.name}</td><td>${p.kills}</td><td>${p.dead ? 'FALLEN' : 'SURVIVOR'}</td></tr>`;
+                });
+            }
+        };
+
+        // --- GAME ENGINE ---
+        const Game = {
+            game: null,
+
+            initMenuMode: () => {
+                // Background leaves only
+                const config = {
+                    type: Phaser.AUTO,
+                    parent: 'game-canvas',
+                    width: window.innerWidth,
+                    height: window.innerHeight,
+                    transparent: true,
+                    scene: [MenuScene, GameScene]
+                };
+                Game.game = new Phaser.Game(config);
+            },
+
+            startCountdown: () => {
+                App.show('none'); // Hide Screens
+                document.getElementById('game-hud').style.display = 'block';
+                const el = document.getElementById('countdown-overlay');
+                el.style.display = 'block';
+                let c = 5;
+                const i = setInterval(() => {
+                    el.innerText = c;
+                    c--;
+                    if (c < 0) {
+                        clearInterval(i);
+                        el.style.display = 'none';
+                        Game.game.scene.start('GameScene'); // Switch to Gameplay
+                    }
+                }, 1000);
+            },
+
+            stop: () => {
+                if (Game.game) Game.game.scene.start('MenuScene');
+            }
+        };
+
+        class MenuScene extends Phaser.Scene {
+            constructor() { super('MenuScene'); }
+            create() {
+                // Falling leaves background
+                const g = this.make.graphics({ x: 0, y: 0, add: false });
+                g.fillStyle(0x00b894, 0.8); g.fillCircle(10, 10, 10); g.generateTexture('leaf', 20, 20);
+
+                this.add.particles(0, 0, 'leaf', {
+                    x: { min: 0, max: this.scale.width },
+                    y: -50,
+                    lifespan: 5000,
+                    speedY: { min: 50, max: 150 },
+                    scale: { start: 0.5, end: 0.2 },
+                    rotate: { min: 0, max: 360 },
+                    quantity: 2,
+                    frequency: 200,
+                    tint: [0x55efc4, 0x00b894, 0xfdcb6e]
+                });
+            }
+        }
+
+        class GameScene extends Phaser.Scene {
+            constructor() { super('GameScene'); }
+
+            create() {
+                this.roomRef = db.collection('rooms').doc(App.roomId);
+
+                // Asset Gen
+                const g = this.make.graphics({ x: 0, y: 0, add: false });
+                g.fillStyle(0xffffff, 1); g.fillTriangle(0, 25, 25, 25, 12, 0); g.generateTexture('playerShip', 25, 25);
+                g.clear(); g.fillStyle(0xffff00, 1); g.fillCircle(5, 5, 5); g.generateTexture('bullet', 10, 10);
+
+                // Logic
+                this.players = this.physics.add.group();
+                this.enemies = this.physics.add.group();
+                this.bullets = this.physics.add.group();
+
+                this.cursors = this.input.keyboard.createCursorKeys();
+                this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+                this.lastShot = 0;
+
+                this.setupSync();
+
+                // Host Spawning
+                if (App.isHost) {
+                    this.time.addEvent({ delay: 1500, callback: this.spawnEnemy, callbackScope: this, loop: true });
+                }
+            }
+
+            update(time) {
+                if (this.myShip && this.myShip.active && !this.myShip.getData('dead')) {
+                    const speed = 8;
+                    let moved = false;
+
+                    if (this.cursors.left.isDown) { this.myShip.x -= speed; moved = true; }
+                    if (this.cursors.right.isDown) { this.myShip.x += speed; moved = true; }
+                    this.myShip.x = Phaser.Math.Clamp(this.myShip.x, 30, this.scale.width - 30);
+
+                    if (moved) {
+                        this.roomRef.collection('players').doc(App.user.uid).update({ x: this.myShip.x });
+                    }
+
+                    if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
+                        this.roomRef.collection('bullets').add({
+                            x: this.myShip.x, y: this.myShip.y - 30,
+                            owner: App.user.uid
+                        });
+                    }
+                }
+
+                if (this.myShip) document.getElementById('hud-hp').innerText = this.myShip.getData('hp') || 0;
+
+                if (App.isHost) this.hostLogic();
+            }
+
+            spawnEnemy() {
+                const types = [
+                    { t: 1, c: 0xff7675, s: 250, hp: 10, pts: 5 }, // Red
+                    { t: 2, c: 0xfdcb6e, s: 200, hp: 20, pts: 10 }, // Yellow
+                    { t: 3, c: 0x0984e3, s: 100, hp: 40, pts: 20 }  // Blue
+                ];
+                const type = types[Math.floor(Math.random() * types.length)];
+
+                this.roomRef.collection('enemies').add({
+                    x: Phaser.Math.Between(50, this.scale.width - 50),
+                    y: -50,
+                    ...type
+                });
+            }
+
+            hostLogic() {
+                // Collisions Bullet vs Enemy
+                this.physics.overlap(this.bullets, this.enemies, (b, e) => {
+                    const owner = b.getData('owner');
+                    this.roomRef.collection('bullets').doc(b.name).delete();
+                    this.roomRef.collection('enemies').doc(e.name).delete();
+
+                    // Update Score
+                    this.roomRef.update({ score: firebase.firestore.FieldValue.increment(e.getData('pts') || 5) });
+
+                    // Award Kill
+                    const r = this.roomRef.collection('players').doc(owner);
+                    r.update({ kills: firebase.firestore.FieldValue.increment(1) });
+                });
+
+                // Enemy vs Player
+                this.physics.overlap(this.players, this.enemies, (p, e) => {
+                    if (p.getData('dead')) return;
+                    this.roomRef.collection('enemies').doc(e.name).delete();
+
+                    // Dmg
+                    const dmg = e.getData('pts') * 2; // rough dmg calc
+                    db.runTransaction(async t => {
+                        const ref = this.roomRef.collection('players').doc(p.name);
+                        const doc = await t.get(ref);
+                        if (doc.exists) {
+                            const hp = Math.max(0, doc.data().hp - dmg);
+                            t.update(ref, { hp: hp, dead: hp <= 0 });
+                        }
+                    });
+                });
+
+                // Bottom of screen -> Penalty
+                this.enemies.getChildren().forEach(e => {
+                    if (e.y > this.scale.height) {
+                        this.roomRef.collection('enemies').doc(e.name).delete();
+                        this.roomRef.update({ score: firebase.firestore.FieldValue.increment(-10) });
+                    }
+                });
+            }
+
+            setupSync() {
+                // Players
+                this.roomRef.collection('players').onSnapshot(snap => {
+                    let alive = 0, count = 0;
+                    snap.forEach(d => {
+                        count++;
+                        const data = d.data();
+                        if (!data.dead) alive++;
+
+                        let p = this.players.getChildren().find(x => x.name === data.uid);
+                        if (!p) {
+                            p = this.physics.add.sprite(data.x, data.y, 'playerShip');
+                            p.name = data.uid;
+                            p.setTint(data.uid === App.user.uid ? 0x00b894 : 0xffffff);
+                            this.players.add(p);
+
+                            // HP Bar
+                            p.hpBar = this.add.graphics();
+
+                            if (data.uid === App.user.uid) this.myShip = p;
+                        } else {
+                            this.tweens.add({ targets: p, x: data.x, duration: 80 });
+                            p.setData('hp', data.hp);
+                            p.setData('dead', data.dead);
+
+                            p.hpBar.clear();
+                            p.hpBar.fillStyle(0x00ff00);
+                            p.hpBar.fillRect(p.x - 20, p.y - 30, 40 * (data.hp / 100), 4);
+
+                            if (data.dead) p.setAlpha(0.3);
+                        }
+                    });
+
+                    if (App.isHost && count > 0 && alive === 0) {
+                        this.roomRef.update({ status: 'finished' });
+                    }
+                });
+
+                // Enemies
+                this.roomRef.collection('enemies').onSnapshot(snap => {
+                    snap.docChanges().forEach(c => {
+                        if (c.type === 'added') {
+                            const d = c.doc.data();
+                            const e = this.add.rectangle(d.x, -50, 40, 40, d.c);
+                            this.physics.add.existing(e);
+                            e.name = c.doc.id;
+                            e.setData(d);
+                            e.body.setVelocityY(d.s);
+                            this.enemies.add(e);
+                        }
+                        if (c.type === 'removed') {
+                            const e = this.enemies.getChildren().find(x => x.name === c.doc.id);
+                            if (e) e.destroy();
+                        }
+                    });
+                });
+
+                // Bullets
+                this.roomRef.collection('bullets').onSnapshot(snap => {
+                    snap.docChanges().forEach(c => {
+                        if (c.type === 'added') {
+                            const d = c.doc.data();
+                            const b = this.physics.add.sprite(d.x, d.y, 'bullet');
+                            b.name = c.doc.id;
+                            b.setData('owner', d.owner);
+                            b.body.setVelocityY(-400);
+                            this.bullets.add(b);
+                        }
+                        if (c.type === 'removed') {
+                            const b = this.bullets.getChildren().find(x => x.name === c.doc.id);
+                            if (b) b.destroy();
+                        }
+                    });
+                });
+            }
+        }
+
+        App.init();
+    </script>
+</body>
+
+</html>
