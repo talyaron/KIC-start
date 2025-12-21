@@ -143,7 +143,7 @@ export class GameEngine {
     }
 
     processAsset(img) {
-        if (!img.complete) return null;
+        if (!img.complete || img.width <= 0) return null;
         const canvas = document.createElement('canvas');
         canvas.width = img.width;
         canvas.height = img.height;
