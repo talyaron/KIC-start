@@ -87,7 +87,8 @@ export class GameEngine {
     addProjectile(x, y, ownerId, color) {
         this.projectiles.push({
             id: Date.now() + Math.random(),
-            x, y, ownerId, color
+            x, y, ownerId,
+            color: color || '#00f0ff' // Default to Cyan if undefined
         });
     }
 
