@@ -6,7 +6,8 @@ import { EnemySpawner } from './spawner.js';
 import { CONFIG } from '../config.js';
 import { audioManager } from '../audio/audioManager.js';
 import { throttle } from '../utils/helpers.js';
-import { updatePlayerPosition, updatePlayerScore, updatePlayerHP, updatePlayerDamage, onRoomChange, updateTeamScore } from '../firebase/realtime.js';
+import { database } from '../firebase/config.js';
+import { updatePlayerPosition, onRoomChange, updateTeamScore } from '../firebase/realtime.js';
 
 export class Game {
     constructor(canvas, roomCode, currentUser, roomData, isHost) {
@@ -46,6 +47,7 @@ export class Game {
 
         // Network sync (throttled)
         this.syncPosition = throttle(this.syncPositionToServer.bind(this), CONFIG.NETWORK.POSITION_UPDATE_RATE);
+        this.syncStats = throttle(this.syncStatsToServer.bind(this), CONFIG.NETWORK.SCORE_UPDATE_RATE);
 
         // Animation frame ID
         this.animationId = null;
@@ -170,6 +172,9 @@ export class Game {
             this.unsubscribeRoom();
             this.unsubscribeRoom = null;
         }
+
+        // Final sync of stats
+        this.syncStatsToServer();
     }
 
     /**
@@ -204,8 +209,9 @@ export class Game {
                 this.shoot(this.localPlayer, currentTime);
             }
 
-            // Sync position to server
+            // Sync position and stats to server
             this.syncPosition();
+            this.syncStats();
         }
 
         // Update all players
@@ -288,11 +294,7 @@ export class Game {
                     const owner = this.players.get(bullet.ownerId);
                     if (owner) {
                         owner.addKill(enemy.type, enemy.score);
-
-                        // Sync score if local player
-                        if (owner === this.localPlayer) {
-                            this.syncScore(enemy.type, enemy.score);
-                        }
+                        // score sync is now handled by throttled syncStats()
                     }
 
                     break;
@@ -310,12 +312,7 @@ export class Game {
                     player.takeDamage(enemy.damage);
                     audioManager.play('playerHit');
 
-                    // Sync HP if local player
-                    if (player === this.localPlayer) {
-                        this.syncHP();
-                        this.syncDamage(enemy.damage);
-                    }
-
+                    // HP sync is now handled by throttled syncStats()
                     break;
                 }
             }
@@ -344,19 +341,23 @@ export class Game {
         });
     }
 
-    syncScore(enemyType, score) {
-        if (this.roomCode === 'local') return;
-        updatePlayerScore(this.roomCode, this.currentUser.uid, score, enemyType);
-    }
-
-    syncHP() {
+    /**
+     * Batch sync for stats (score, kills, hp, damageTaken)
+     */
+    syncStatsToServer() {
         if (!this.localPlayer || this.roomCode === 'local') return;
-        updatePlayerHP(this.roomCode, this.currentUser.uid, this.localPlayer.hp);
-    }
 
-    syncDamage(damage) {
-        if (this.roomCode === 'local') return;
-        updatePlayerDamage(this.roomCode, this.currentUser.uid, damage);
+        // Use a generic update for the entire player object in the room
+        // to minimize individual update calls
+        const updates = {
+            score: this.localPlayer.score,
+            hp: Math.max(0, Math.ceil(this.localPlayer.hp)),
+            kills: { ...this.localPlayer.kills },
+            damageTaken: this.localPlayer.damageTaken
+        };
+
+        // We use the base database ref to do a single update
+        database.ref(`rooms/${this.roomCode}/players/${this.currentUser.uid}`).update(updates);
     }
 
     /**

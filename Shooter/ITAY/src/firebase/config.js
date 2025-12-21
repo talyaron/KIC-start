@@ -14,7 +14,7 @@ const firebaseConfig = {
 const app = firebase.initializeApp(firebaseConfig);
 
 // Enable Realtime Database logging for debugging
-firebase.database.enableLogging(true);
+// firebase.database.enableLogging(true);
 
 // Export Firebase services
 export const auth = app.auth();
