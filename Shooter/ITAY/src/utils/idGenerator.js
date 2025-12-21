@@ -9,24 +9,21 @@ export function generateCode() {
 }
 
 /**
- * Generate a unique user code by checking against existing codes in Firestore
- * @param {import('../firebase/config').firestore} firestore - Firestore instance
+ * Generate a unique user code by checking against existing codes in Realtime Database
+ * @param {import('../firebase/config').database} database - RTDB instance
  * @returns {Promise<string>} Unique 6-digit user code
  */
-export async function generateUniqueUserCode(firestore) {
+export async function generateUniqueUserCode(database) {
     let attempts = 0;
     const maxAttempts = 10;
 
     while (attempts < maxAttempts) {
         const code = generateCode();
 
-        // Check if code already exists
-        const querySnapshot = await firestore
-            .collection('users')
-            .where('userCode', '==', code)
-            .get();
+        // Check if code already exists in codes registry
+        const snapshot = await database.ref(`codes/${code}`).once('value');
 
-        if (querySnapshot.empty) {
+        if (!snapshot.exists()) {
             return code;
         }
 

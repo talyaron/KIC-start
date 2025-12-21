@@ -77,13 +77,18 @@ class App {
 
         // Special handling for create-room
         if (screenName === 'create-room') {
+            this.screens.lobby.setMode('multiplayer');
             this.navigate('lobby');
             // Auto-trigger create room
             setTimeout(() => {
                 const createBtn = document.getElementById('create-room-btn');
                 if (createBtn) createBtn.click();
-            }, 100);
+            }, 200);
             return;
+        }
+
+        if (screenName === 'lobby') {
+            this.screens.lobby.setMode('multiplayer');
         }
 
         // Hide current screen

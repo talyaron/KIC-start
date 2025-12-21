@@ -7,29 +7,20 @@ const firebaseConfig = {
   messagingSenderId: "859756799800",
   appId: "1:859756799800:web:1e500da3e8a8cbcd4f83cd",
   measurementId: "G-ZR83Y597DN",
-  databaseURL: "https://project-keco-default-rtdb.europe-west1.firebasedatabase.app/"
+  databaseURL: "https://project-keco-default-rtdb.europe-west1.firebasedatabase.app"
 };
 
 // Initialize Firebase
-firebase.initializeApp(firebaseConfig);
+const app = firebase.initializeApp(firebaseConfig);
+
+// Enable Realtime Database logging for debugging
+firebase.database.enableLogging(true);
 
 // Export Firebase services
-export const auth = firebase.auth();
-export const firestore = firebase.firestore();
-export const database = firebase.database();
+export const auth = app.auth();
+export const firestore = app.firestore();
+export const database = app.database(firebaseConfig.databaseURL);
 
-// Configure Firestore Cache (New API)
-const settings = {
-  cacheElementChild: true
-};
-
-// Enable offline persistence for Firestore
-firestore.enablePersistence({ synchronizeTabs: true }).catch((err) => {
-  if (err.code === 'failed-precondition') {
-    console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
-  } else if (err.code === 'unimplemented') {
-    console.warn('The current browser does not support persistence.');
-  }
-});
+export default firebase;
 
 console.log('🔥 Firebase initialized successfully');

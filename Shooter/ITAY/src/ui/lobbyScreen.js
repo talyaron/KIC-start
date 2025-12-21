@@ -1,6 +1,6 @@
 // Enhanced Lobby Screen with Multiplayer Support
 
-import { createRoom, joinRoom, onRoomChange, setPlayerReady, startGameCountdown, updateCountdown, leaveRoom, isHost } from '../firebase/realtime.js';
+import { createRoom, joinRoom, onRoomChange, setPlayerReady, startGameCountdown, updateCountdown, updateLobbyCountdown, leaveRoom, isHost } from '../firebase/realtime.js';
 import { getUserProfile } from '../firebase/firestore.js';
 import { showToast, copyToClipboard } from '../utils/helpers.js';
 import { validateRoomCode } from '../utils/validators.js';
@@ -34,7 +34,7 @@ export class LobbyScreen {
         
         <!-- Menu Screen -->
         <div id="lobby-menu" class="lobby-menu">
-          <h2 style="font-size: 3rem; margin-bottom: 3rem; text-align: center; background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+          <h2 style="font-size: 3rem; margin-bottom: 3rem; text-align: center; background: var(--gradient-primary); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">
             Choose Game Mode
           </h2>
           
@@ -59,6 +59,9 @@ export class LobbyScreen {
         <div id="lobby-multiplayer" class="lobby-multiplayer" style="display:none;">
           <!-- Room Code Display -->
           <div class="room-code-display" id="room-code-section" style="display:none;">
+            <div class="room-info-header">
+              <div class="lobby-timer" id="lobby-timer-disp">Waiting for friends: 30s</div>
+            </div>
             <div class="room-code-label">ROOM CODE</div>
             <div class="room-code-value" id="room-code-value">------</div>
             <div class="copy-hint">Click to copy • Share with friends</div>
@@ -91,6 +94,8 @@ export class LobbyScreen {
       </div>
     `;
 
+        this.lobbyCountdown = 30;
+        this.lobbyTimerInterval = null;
         this.setupListeners();
     }
 
@@ -160,15 +165,25 @@ export class LobbyScreen {
     }
 
     handleMultiMode() {
-        this.mode = 'multiplayer';
-        document.getElementById('lobby-menu').style.display = 'none';
-        document.getElementById('lobby-multiplayer').style.display = 'block';
+        this.setMode('multiplayer');
+    }
+
+    setMode(mode) {
+        this.mode = mode;
+        if (mode === 'multiplayer') {
+            document.getElementById('lobby-menu').style.display = 'none';
+            document.getElementById('lobby-multiplayer').style.display = 'block';
+            document.getElementById('join-section').style.display = 'block';
+            document.getElementById('room-code-section').style.display = 'none';
+            document.getElementById('lobby-area').style.display = 'none';
+        } else if (mode === 'menu') {
+            document.getElementById('lobby-menu').style.display = 'block';
+            document.getElementById('lobby-multiplayer').style.display = 'none';
+        }
     }
 
     showMenu() {
-        this.mode = 'menu';
-        document.getElementById('lobby-menu').style.display = 'block';
-        document.getElementById('lobby-multiplayer').style.display = 'none';
+        this.setMode('menu');
     }
 
     async setUser(user) {
@@ -177,17 +192,22 @@ export class LobbyScreen {
 
     async handleCreateRoom() {
         try {
+            console.log('🏗️ Creating room for:', this.currentUser?.uid);
             showToast('Creating room...', 'info');
+
             const roomCode = await createRoom(this.currentUser);
+            console.log('✅ Room created:', roomCode);
+
             this.currentRoomCode = roomCode;
             this.isHost = true;
 
-            showToast('Room created! Share the code with friends!', 'success');
+            showToast('Room created! Friends can join with your ID!', 'success');
             this.showLobby();
             this.listenToRoom();
         } catch (error) {
-            console.error('Create room error:', error);
-            showToast(error.message || 'Failed to create room. Enable Firebase Realtime Database first!', 'error');
+            console.error('❌ [UI] Create room error:', error);
+            // The error.message now contains specific networking advice if it was a timeout
+            showToast(error.message || 'Failed to create room. Check your internet!', 'error');
         }
     }
 
@@ -232,6 +252,7 @@ export class LobbyScreen {
             }
 
             this.updateLobbyUI(roomData);
+            this.handleLobbyCountdownSync(roomData);
 
             if (roomData.status === 'countdown') {
                 this.handleCountdown(roomData.countdown);
@@ -239,6 +260,46 @@ export class LobbyScreen {
                 this.startGame(roomData);
             }
         });
+    }
+
+    handleLobbyCountdownSync(roomData) {
+        if (roomData.status !== 'lobby') {
+            if (this.lobbyTimerInterval) {
+                clearInterval(this.lobbyTimerInterval);
+                this.lobbyTimerInterval = null;
+            }
+            return;
+        }
+
+        const timerDisp = document.getElementById('lobby-timer-disp');
+        if (timerDisp) {
+            timerDisp.textContent = `Waiting for friends: ${roomData.lobbyCountdown}s`;
+        }
+
+        // Host manages the timer
+        if (this.isHost && !this.lobbyTimerInterval && roomData.lobbyCountdown > 0) {
+            this.startLobbyTimer(roomData.lobbyCountdown);
+        }
+    }
+
+    startLobbyTimer(initialValue) {
+        this.lobbyCountdown = initialValue;
+        if (this.lobbyTimerInterval) clearInterval(this.lobbyTimerInterval);
+
+        this.lobbyTimerInterval = setInterval(async () => {
+            if (!this.currentRoomCode || !this.isHost) {
+                clearInterval(this.lobbyTimerInterval);
+                return;
+            }
+
+            this.lobbyCountdown--;
+            if (this.lobbyCountdown <= 0) {
+                clearInterval(this.lobbyTimerInterval);
+                await this.handleStartGame(); // Automatic start
+            } else {
+                await updateLobbyCountdown(this.currentRoomCode, this.lobbyCountdown);
+            }
+        }, 1000);
     }
 
     updateLobbyUI(roomData) {
@@ -417,7 +478,10 @@ export class LobbyScreen {
 
     show() {
         this.screenEl.classList.add('active');
-        this.showMenu();
+        // If mode was not explicitly set (e.g. from nav), default to menu
+        if (this.mode === 'menu') {
+            this.showMenu();
+        }
     }
 
     hide() {
