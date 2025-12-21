@@ -1,6 +1,7 @@
 // Bullet Entity
 
 import { CONFIG } from '../config.js';
+import { assets } from './AssetManager.js';
 
 export class Bullet {
     constructor(x, y, ownerId, damage) {
@@ -63,13 +64,23 @@ export class Bullet {
     render(ctx) {
         if (!this.active) return;
 
-        ctx.fillStyle = this.color;
-        ctx.fillRect(this.x, this.y, this.width, this.height);
+        const img = assets.get('missile');
 
-        // Add glow effect
-        ctx.shadowColor = this.color;
-        ctx.shadowBlur = 10;
-        ctx.fillRect(this.x, this.y, this.width, this.height);
-        ctx.shadowBlur = 0;
+        if (img) {
+            ctx.save();
+            ctx.shadowColor = this.color;
+            ctx.shadowBlur = 10;
+            ctx.drawImage(img, this.x, this.y, this.width, this.height);
+            ctx.restore();
+        } else {
+            ctx.fillStyle = this.color;
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+
+            // Add glow effect
+            ctx.shadowColor = this.color;
+            ctx.shadowBlur = 10;
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+            ctx.shadowBlur = 0;
+        }
     }
 }

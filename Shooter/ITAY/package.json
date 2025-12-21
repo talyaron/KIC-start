@@ -1,0 +1,26 @@
+{
+  "name": "itay-shooter",
+  "version": "1.0.0",
+  "description": "Multiplayer 2D minimalist shooter game with Firebase backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "http-server . -p 8080",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "multiplayer",
+    "shooter",
+    "firebase",
+    "game"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  },
+  "dependencies": {
+    "firebase": "^12.7.0",
+    "react": "^19.2.3"
+  }
+}

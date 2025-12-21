@@ -20,31 +20,31 @@ export const CONFIG = {
     // Enemy Settings
     ENEMIES: {
         RED: {
-            type: 'RED',
+            type: 'RED', // SMALL (Scaled 3x from 30)
             color: '#ff006e',
             damage: 10,
-            score: 5,
-            size: 30,
-            speed: 2,
-            spawnWeight: 70, // High frequency
+            score: 10,
+            size: 90,
+            speed: 4, // Fast physics
+            spawnWeight: 60,
         },
         YELLOW: {
-            type: 'YELLOW',
+            type: 'YELLOW', // MEDIUM (Scaled 2x from 55)
             color: '#ffbe0b',
-            damage: 15,
-            score: 10,
-            size: 40,
-            speed: 1.5,
-            spawnWeight: 25, // Medium frequency
+            damage: 25,
+            score: 25,
+            size: 110,
+            speed: 2,
+            spawnWeight: 30,
         },
         BLUE: {
-            type: 'BLUE',
+            type: 'BLUE', // LARGE (Scaled 1.5x from 100)
             color: '#3a86ff',
-            damage: 30,
-            score: 20,
-            size: 50,
-            speed: 1,
-            spawnWeight: 5, // Low frequency (rare)
+            damage: 50,
+            score: 100,
+            size: 150,
+            speed: 1, // Slow physics
+            spawnWeight: 10,
         },
     },
 

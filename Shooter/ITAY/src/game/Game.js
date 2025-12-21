@@ -8,6 +8,7 @@ import { audioManager } from '../audio/audioManager.js';
 import { throttle } from '../utils/helpers.js';
 import { database } from '../firebase/config.js';
 import { updatePlayerPosition, onRoomChange, updateTeamScore } from '../firebase/realtime.js';
+import { assets } from './AssetManager.js';
 
 export class Game {
     constructor(canvas, roomCode, currentUser, roomData, isHost) {
@@ -364,12 +365,22 @@ export class Game {
      * Render game
      */
     render() {
-        // Clear canvas
-        this.ctx.fillStyle = CONFIG.color || '#0a0e27';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        // Draw space background
+        const bgImg = assets.get('space_bg');
+        if (bgImg) {
+            this.ctx.save();
+            // Brighten background for better visibility of asteroids
+            this.ctx.filter = 'brightness(1.8) contrast(1.2)';
+            this.ctx.drawImage(bgImg, 0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.restore();
+        } else {
+            // Clear canvas fallback
+            this.ctx.fillStyle = CONFIG.color || '#0a0e27';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        }
 
-        // Render ground line
-        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        // Render ground line (making it more subtle/sci-fi)
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
         this.ctx.lineWidth = 2;
         this.ctx.beginPath();
         this.ctx.moveTo(0, this.canvas.height - 50);

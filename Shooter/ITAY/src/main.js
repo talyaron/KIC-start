@@ -3,6 +3,7 @@
 import './firebase/config.js';
 import { onAuthStateChange, getCurrentUser } from './firebase/auth.js';
 import { AuthScreen } from './ui/authScreen.js';
+import { assets } from './game/AssetManager.js';
 import { HomeScreen } from './ui/homeScreen.js';
 import { LobbyScreen } from './ui/lobbyScreen.js';
 import { GameScreen } from './ui/gameScreen.js';
@@ -38,8 +39,11 @@ class App {
         this.init();
     }
 
-    init() {
+    async init() {
         console.log('🎮 Initializing Shooter game...');
+
+        // Load assets early
+        await assets.loadAssets();
 
         // Setup auth state listener
         onAuthStateChange((user) => {

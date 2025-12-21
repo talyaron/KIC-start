@@ -2,6 +2,7 @@
 
 import { CONFIG } from '../config.js';
 import { clamp } from '../utils/helpers.js';
+import { assets } from './AssetManager.js';
 
 export class Player {
     constructor(uid, x, y, color = '#8338ec') {
@@ -166,9 +167,20 @@ export class Player {
      * @param {CanvasRenderingContext2D} ctx - Canvas context
      */
     render(ctx) {
-        // Draw player body
-        ctx.fillStyle = this.color;
-        ctx.fillRect(this.x, this.y, this.width, this.height);
+        const img = assets.get('spaceship');
+
+        if (img) {
+            // Draw glow based on player color
+            ctx.save();
+            ctx.shadowColor = this.color;
+            ctx.shadowBlur = 20;
+            ctx.drawImage(img, this.x, this.y, this.width, this.height);
+            ctx.restore();
+        } else {
+            // Fallback
+            ctx.fillStyle = this.color;
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+        }
 
         // Draw health bar above player
         const barWidth = this.width;

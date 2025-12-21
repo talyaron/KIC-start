@@ -1,6 +1,7 @@
 // Enemy Entity
 
 import { CONFIG } from '../config.js';
+import { assets } from './AssetManager.js';
 
 export class Enemy {
     constructor(type, x, y) {
@@ -67,12 +68,34 @@ export class Enemy {
     render(ctx) {
         if (!this.active) return;
 
-        ctx.fillStyle = this.color;
-        ctx.fillRect(this.x, this.y, this.width, this.height);
+        let img = assets.get('asteroid');
 
-        // Optional: Add outline
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(this.x, this.y, this.width, this.height);
+        if (img) {
+            ctx.save();
+
+            // Move to center for rotation
+            ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+
+            // Rotation speed linked to size (Small = super fast, Large = super slow/menacing)
+            const rotFactor = this.width / 2.5;
+            const rotation = (this.y / rotFactor) % (Math.PI * 2);
+            ctx.rotate(rotation);
+
+            // Visual Hierarchy: Glow intensity and menace increases with size
+            ctx.shadowColor = this.color;
+            ctx.shadowBlur = this.width / 4;
+
+            // Draw centered
+            ctx.drawImage(img, -this.width / 2, -this.height / 2, this.width, this.height);
+
+            // Extra menacing effects for giant asteroids
+            if (this.width > 120) {
+                ctx.globalAlpha = 0.25;
+                ctx.shadowBlur = this.width / 2;
+                ctx.drawImage(img, -this.width / 2, -this.height / 2, this.width, this.height);
+            }
+
+            ctx.restore();
+        }
     }
 }
