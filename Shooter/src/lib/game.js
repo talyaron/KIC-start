@@ -16,9 +16,10 @@ export class GameEngine {
         this.lastTime = 0;
 
         // Config
-        this.playerSpeed = 5;
+        this.playerSpeed = 10; // Faster movement
         this.enemySpeed = 2;
         this.spawnTimer = 0;
+        this.lastShootTimes = {}; // Map { uid: timestamp }
     }
 
     start() {
@@ -58,10 +59,19 @@ export class GameEngine {
     }
 
     addProjectile(x, y, ownerId) {
+        const now = Date.now();
+        const lastShoot = this.lastShootTimes[ownerId] || 0;
+
+        if (now - lastShoot < 400) { // 400ms cooldown (shoot less fast)
+            return false;
+        }
+
+        this.lastShootTimes[ownerId] = now;
         this.projectiles.push({
             id: Date.now() + Math.random(),
             x, y, ownerId
         });
+        return true;
     }
 
     loop(timestamp) {
