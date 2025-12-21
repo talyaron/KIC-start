@@ -29,6 +29,13 @@ export class AuthScreen {
             showToast('Signed in successfully!', 'success');
         } catch (error) {
             console.error('Google sign-in error:', error);
+
+            // Handle common "user cancelled" error gracefully
+            if (error.code === 'auth/popup-closed-by-user') {
+                this.showError('Sign-in cancelled');
+                return;
+            }
+
             this.showError(error.message || 'Failed to sign in with Google');
         } finally {
             this.showLoading(false);

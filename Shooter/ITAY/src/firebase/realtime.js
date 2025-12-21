@@ -199,6 +199,9 @@ export async function updateCountdown(roomCode, value) {
 
     if (value === 0) {
         updates.status = 'playing';
+        updates.matchStartTime = firebase.database.ServerValue.TIMESTAMP;
+        // Clear old events for a fresh match
+        await database.ref(`rooms/${roomCode}/events`).remove();
     }
 
     await database.ref(`rooms/${roomCode}`).update(updates);
@@ -246,10 +249,19 @@ export async function broadcastGameEvent(roomCode, eventData) {
  */
 export function onGameEvent(roomCode, callback) {
     const eventsRef = database.ref(`rooms/${roomCode}/events`);
-    // Only listen for NEW events added after this point
-    const query = eventsRef.orderByChild('timestamp').startAt(Date.now());
 
-    const listener = query.on('child_added', (snapshot) => {
+    // Pattern to ignore existing data:
+    // First, we check the current time on the server if possible, 
+    // but a simpler way is to use a flag that only becomes true after the first 'value' event
+    let initialCleanupFinished = false;
+
+    // This once('value') will resolve after all existing children are processed by the 'on' listener
+    eventsRef.once('value').then(() => {
+        initialCleanupFinished = true;
+    });
+
+    const listener = eventsRef.on('child_added', (snapshot) => {
+        if (!initialCleanupFinished) return; // Skip historical events
         callback(snapshot.val());
     });
 

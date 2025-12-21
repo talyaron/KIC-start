@@ -16,6 +16,8 @@ export class Game {
         this.roomCode = roomCode;
         this.currentUser = currentUser;
         this.isHost = isHost;
+        this.matchStartTime = roomData.matchStartTime || Date.now();
+        this.playerCountAtStart = Object.keys(roomData.players || {}).length;
 
         // Setup canvas
         this.canvas.width = CONFIG.CANVAS_WIDTH;
@@ -113,6 +115,11 @@ export class Game {
 
             // Update team score
             this.teamScore = roomData.teamScore || 0;
+
+            // Sync match start time if assigned by host
+            if (roomData.matchStartTime) {
+                this.matchStartTime = roomData.matchStartTime;
+            }
         });
     }
 
@@ -265,7 +272,7 @@ export class Game {
 
         // Spawn enemies (Deterministic for all players via matchSeed)
         if (this.spawner) {
-            this.spawner.spawn(this.enemies, currentTime, this.players.size);
+            this.spawner.spawn(this.enemies, currentTime, this.playerCountAtStart, this.matchStartTime);
         }
 
         // Update enemies

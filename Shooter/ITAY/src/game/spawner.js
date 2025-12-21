@@ -49,10 +49,11 @@ export class EnemySpawner {
      * @param {Array} enemies - Current enemies array
      * @param {number} currentTime - Current timestamp
      * @param {number} playerCount - Number of players for scaling
+     * @param {number} matchStartTime - Timestamp when match actually started
      */
-    spawn(enemies, currentTime, playerCount = 1) {
-        // Apply 25% increase per additional player (1 player = 1.0, 2 = 1.25, 3 = 1.5, etc)
-        const playerScale = 1 + ((playerCount - 1) * 0.25);
+    spawn(enemies, currentTime, playerCount = 1, matchStartTime = null) {
+        // Apply 25% increase per additional player
+        const playerScale = 1 + (Math.max(0, playerCount - 1) * 0.25);
         const scaledInterval = CONFIG.SPAWN.INTERVAL / (this.difficulty * playerScale);
 
         if (currentTime - this.lastSpawnTime < scaledInterval) {
@@ -69,7 +70,12 @@ export class EnemySpawner {
         // Spawn new enemy
         const type = this.getRandomEnemyType();
         const x = this.random() * (this.canvasWidth - CONFIG.ENEMIES[type].size);
-        const spawnId = `${this.seed}_${this.spawnCounter++}`; // Unique ID across all clients
+
+        // Generate a STABLE spawnId based on the time slot of the match
+        // This allows late-joiners to identify the same enemies accurately.
+        const startTime = matchStartTime || this.gameStartTime;
+        const timeSlot = Math.floor((currentTime - startTime) / 100); // 100ms precision
+        const spawnId = `enemy_${this.seed}_${timeSlot}_${Math.floor(x)}`;
 
         const enemy = new Enemy(type, x, -CONFIG.ENEMIES[type].size);
         enemy.spawnId = spawnId;
