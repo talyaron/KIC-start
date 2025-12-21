@@ -46,8 +46,15 @@ export default function GameCanvas() {
                         [`players/${state.uid}/hp`]: safeHp
                     }).catch(() => { });
                 } else if (state.type === 'SCORE_UPDATE') {
+                    const currentKills = engine.players[state.uid]?.kills || { 1: 0, 2: 0, 3: 0 };
+                    const newKills = { ...currentKills };
+                    if (state.alienSize) {
+                        newKills[state.alienSize] = (newKills[state.alienSize] || 0) + 1;
+                    }
+
                     update(roomRef, {
-                        [`players/${state.uid}/score`]: state.score
+                        [`players/${state.uid}/score`]: state.score,
+                        [`players/${state.uid}/kills`]: newKills
                     }).catch(() => { });
                 }
             },
@@ -81,6 +88,7 @@ export default function GameCanvas() {
 
             if (!engine.isHost) {
                 if (data.enemies) engine.updateEnemies(data.enemies);
+                if (data.boosts) engine.updateBoosts(data.boosts);
                 if (data.projectiles) engine.updateProjectiles(data.projectiles);
             }
 
@@ -112,6 +120,8 @@ export default function GameCanvas() {
                             };
                         });
 
+                        setStats({ 1: 0, 2: 0, 3: 0 });
+
                         update(roomRef, {
                             status: 'playing',
                             enemies: null,
@@ -127,7 +137,6 @@ export default function GameCanvas() {
                 }
             }
 
-            // If game status changes back to playing (restart)
             if (data.status === 'playing' && gameOver) {
                 setGameOver(false);
                 setHasVoted(false);
@@ -236,7 +245,34 @@ export default function GameCanvas() {
                     flexDirection: 'column'
                 }}>
                     <h1 className="neon-text" style={{ fontSize: '5rem', color: 'var(--accent-danger)', marginBottom: '0' }}>GAME OVER</h1>
-                    <div style={{ color: 'white', fontSize: '1.2rem', marginBottom: '40px', opacity: 0.8 }}>The alien invasion continues...</div>
+                    <div style={{ color: 'white', fontSize: '1.2rem', marginBottom: '20px', opacity: 0.8 }}>The alien invasion continues...</div>
+
+                    {/* Mission Stats */}
+                    <div style={{
+                        background: 'rgba(255,255,255,0.05)', padding: '20px', borderRadius: '15px',
+                        border: '1px solid rgba(255,255,255,0.1)', marginBottom: '30px', minWidth: '300px'
+                    }}>
+                        <h3 style={{ color: 'var(--accent-primary)', margin: '0 0 15px 0', textAlign: 'center', letterSpacing: '4px' }}>MISSION DEBRIEF</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#88e188' }}>
+                                <span>Scouts Terminated:</span>
+                                <b>{players[user.uid]?.kills?.[1] || 0}</b>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ffb944' }}>
+                                <span>Cruisers Destroyed:</span>
+                                <b>{players[user.uid]?.kills?.[2] || 0}</b>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff55ff' }}>
+                                <span>Motherships Neutralized:</span>
+                                <b>{players[user.uid]?.kills?.[3] || 0}</b>
+                            </div>
+                            <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', margin: '5px 0' }}></div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'white', fontSize: '1.2rem' }}>
+                                <span>TOTAL SCORE:</span>
+                                <b className="neon-text">{players[user.uid]?.score || 0}</b>
+                            </div>
+                        </div>
+                    </div>
 
                     <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
                         {!hasVoted ? (

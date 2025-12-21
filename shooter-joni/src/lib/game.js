@@ -11,8 +11,10 @@ export class GameEngine {
 
         this.players = {};
         this.enemies = [];
+        this.boosts = [];
         this.projectiles = [];
         this.particles = [];
+        this.scorePopups = []; // Floating text
         this.stars = this.initStars();
         this.shake = 0;
 
@@ -23,11 +25,15 @@ export class GameEngine {
         // Assets
         this.assets = {
             spaceship: new Image(),
-            alien: new Image(),
+            alien1: new Image(),
+            alien2: new Image(),
+            alien3: new Image(),
             star: new Image()
         };
         this.assets.spaceship.src = '/src/assets/spaceship.png';
-        this.assets.alien.src = '/src/assets/alien.png';
+        this.assets.alien1.src = '/src/assets/alien_1.png';
+        this.assets.alien2.src = '/src/assets/alien_2.png';
+        this.assets.alien3.src = '/src/assets/alien_3.png';
         this.assets.star.src = '/src/assets/star.png';
 
         this.tintedShipCache = {}; // { color: canvas }
@@ -41,6 +47,9 @@ export class GameEngine {
         this.spawnTimer = 0;
         this.lastShootTimes = {};
         this.processedShootTimes = {};
+
+        // Boosts state
+        this.playerBoosts = {}; // { uid: { type: 'speed'|'triple', end: timestamp } }
     }
 
     initStars() {
@@ -98,6 +107,22 @@ export class GameEngine {
             gainNode.gain.linearRampToValueAtTime(0, now + 1);
             oscillator.start();
             oscillator.stop(now + 1);
+        } else if (type === 'alienDeath') {
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.setValueAtTime(100, now);
+            oscillator.frequency.linearRampToValueAtTime(20, now + 0.4);
+            gainNode.gain.setValueAtTime(0.4, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+            oscillator.start();
+            oscillator.stop(now + 0.4);
+        } else if (type === 'boost') {
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(440, now);
+            oscillator.frequency.linearRampToValueAtTime(880, now + 0.2);
+            gainNode.gain.setValueAtTime(0.2, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+            oscillator.start();
+            oscillator.stop(now + 0.2);
         }
     }
 
@@ -166,7 +191,14 @@ export class GameEngine {
                 const last = this.processedShootTimes[uid] || 0;
                 if (p.lastShoot && p.lastShoot > last) {
                     this.processedShootTimes[uid] = p.lastShoot;
-                    this.addProjectile(p.x + 25, p.y, uid, p.color);
+                    const boost = this.playerBoosts[uid];
+                    if (boost && boost.type === 'triple') {
+                        this.addProjectile(p.x + 5, p.y + 10, uid, p.color);
+                        this.addProjectile(p.x + 25, p.y, uid, p.color);
+                        this.addProjectile(p.x + 45, p.y + 10, uid, p.color);
+                    } else {
+                        this.addProjectile(p.x + 25, p.y, uid, p.color);
+                    }
                     this.playSound('shoot');
                 }
             });
@@ -177,6 +209,12 @@ export class GameEngine {
     updateEnemies(serverEnemies) {
         if (!this.isHost) {
             this.enemies = serverEnemies || [];
+        }
+    }
+
+    updateBoosts(serverBoosts) {
+        if (!this.isHost) {
+            this.boosts = serverBoosts || [];
         }
     }
 
@@ -191,10 +229,13 @@ export class GameEngine {
         const p = this.players[myUid];
         if (!p) return null;
 
-        if (input.left && p.x > 0) p.x -= this.playerSpeed;
-        if (input.right && p.x < this.width - 50) p.x += this.playerSpeed;
-        if (input.up && p.y > 0) p.y -= this.playerSpeed;
-        if (input.down && p.y < this.height - 50) p.y += this.playerSpeed;
+        const boost = this.playerBoosts[myUid];
+        const speed = boost && boost.type === 'speed' ? this.playerSpeed * 1.6 : this.playerSpeed;
+
+        if (input.left && p.x > 0) p.x -= speed;
+        if (input.right && p.x < this.width - 50) p.x += speed;
+        if (input.up && p.y > 0) p.y -= speed;
+        if (input.down && p.y < this.height - 50) p.y += speed;
 
         return { x: p.x, y: p.y };
     }
@@ -202,8 +243,10 @@ export class GameEngine {
     tryShoot(myUid) {
         if (this.paused) return null;
         const now = Date.now();
-        const lastShoot = this.lastShootTimes[myUid] || 0;
-        if (now - lastShoot < 250) return null;
+        const boost = this.playerBoosts[myUid];
+        const delay = boost && boost.type === 'speed' ? 120 : 250;
+
+        if (now - lastShoot < delay) return null;
 
         this.lastShootTimes[myUid] = now;
         return now;
@@ -230,6 +273,14 @@ export class GameEngine {
         requestAnimationFrame(this.loop.bind(this));
     }
 
+    addScorePopup(x, y, text, color) {
+        this.scorePopups.push({
+            x, y, text, color,
+            life: 1.0,
+            vy: -2
+        });
+    }
+
     update(dt) {
         // Move Stars
         this.stars.forEach(star => {
@@ -248,7 +299,22 @@ export class GameEngine {
         });
         this.particles = this.particles.filter(p => p.life > 0);
 
+        // Update Score Popups
+        this.scorePopups.forEach(p => {
+            p.y += p.vy;
+            p.life -= 0.015;
+        });
+        this.scorePopups = this.scorePopups.filter(p => p.life > 0);
+
         if (this.shake > 0) this.shake -= 0.5;
+
+        // Expire boosts
+        const now = Date.now();
+        Object.keys(this.playerBoosts).forEach(uid => {
+            if (this.playerBoosts[uid].end < now) {
+                delete this.playerBoosts[uid];
+            }
+        });
 
         if (this.isHost) {
             this.projectiles.forEach(p => p.y -= 10);
@@ -257,21 +323,44 @@ export class GameEngine {
             this.spawnTimer += 16;
             if (this.spawnTimer > 1000) {
                 this.spawnTimer = 0;
+                // Randomly spawn size 1, 2, or 3
+                const roll = Math.random();
+                let size = 1;
+                if (roll > 0.9) size = 3;
+                else if (roll > 0.7) size = 2;
+
                 this.enemies.push({
-                    id: Date.now(),
-                    x: Math.random() * (this.width - 50),
-                    y: -50,
-                    type: Math.random() > 0.7 ? 'elite' : 'normal',
-                    width: 50,
-                    height: 50
+                    id: Date.now() + Math.random(),
+                    x: Math.random() * (this.width - (40 + size * 20)),
+                    y: -100,
+                    size: size,
+                    hp: size,
+                    maxHp: size,
+                    width: 40 + size * 20,
+                    height: 40 + size * 20
                 });
+
+                // Spawn boost occasionally
+                if (Math.random() > 0.9) {
+                    this.boosts.push({
+                        id: 'boost_' + Date.now(),
+                        x: Math.random() * (this.width - 40),
+                        y: -50,
+                        type: Math.random() > 0.5 ? 'speed' : 'triple'
+                    });
+                }
             }
 
             this.enemies.forEach(e => {
-                e.y += this.enemySpeed;
+                e.y += this.enemySpeed * (1.5 - (e.size * 0.2)); // Larger ones are slower
+            });
+
+            this.boosts.forEach(b => {
+                b.y += 3;
             });
 
             this.enemies = this.enemies.filter(e => e.y < this.height);
+            this.boosts = this.boosts.filter(b => b.y < this.height);
 
             // Collisions
             this.projectiles.forEach((p, pIdx) => {
@@ -282,19 +371,30 @@ export class GameEngine {
                         p.y < e.y + e.height &&
                         p.y + 10 > e.y
                     ) {
-                        this.addParticles(e.x + e.width / 2, e.y + e.height / 2, '#ff4444', 15);
-                        this.playSound('explosion');
-                        this.enemies.splice(eIdx, 1);
+                        this.addParticles(p.x, p.y, p.color, 5);
+                        this.playSound('hit');
+                        e.hp -= 1;
                         this.projectiles.splice(pIdx, 1);
 
-                        if (this.players[p.ownerId]) {
-                            this.players[p.ownerId].score = (this.players[p.ownerId].score || 0) + 100;
-                            if (this.onStateUpdate) {
-                                this.onStateUpdate({
-                                    type: 'SCORE_UPDATE',
-                                    uid: p.ownerId,
-                                    score: this.players[p.ownerId].score
-                                });
+                        if (e.hp <= 0) {
+                            const partColor = e.size === 3 ? '#ff00ff' : e.size === 2 ? '#ff8800' : '#ffaa00';
+                            this.addParticles(e.x + e.width / 2, e.y + e.height / 2, partColor, 30);
+                            this.playSound('alienDeath');
+                            this.enemies.splice(eIdx, 1);
+
+                            if (this.players[p.ownerId]) {
+                                const points = e.size * 200;
+                                this.players[p.ownerId].score = (this.players[p.ownerId].score || 0) + points;
+                                this.addScorePopup(e.x, e.y, '+' + points, '#ffff00');
+
+                                if (this.onStateUpdate) {
+                                    this.onStateUpdate({
+                                        type: 'SCORE_UPDATE',
+                                        uid: p.ownerId,
+                                        score: this.players[p.ownerId].score,
+                                        alienSize: e.size
+                                    });
+                                }
                             }
                         }
                     }
@@ -320,12 +420,31 @@ export class GameEngine {
                         }
                     }
                 });
+
+                // Boost Pickup
+                this.boosts.forEach((b, bIdx) => {
+                    if (
+                        pl.x < b.x + 40 &&
+                        pl.x + 60 > b.x &&
+                        pl.y < b.y + 40 &&
+                        pl.y + 60 > b.y
+                    ) {
+                        this.playSound('boost');
+                        this.boosts.splice(bIdx, 1);
+                        this.playerBoosts[uid] = {
+                            type: b.type,
+                            end: Date.now() + 8000 // 8 seconds
+                        };
+                        this.addScorePopup(pl.x, pl.y, b.type.toUpperCase() + ' BOOST!', '#00ffff');
+                    }
+                });
             });
 
             if (this.onStateUpdate) {
                 this.onStateUpdate({
                     type: 'UPDATE_STATE',
                     enemies: this.enemies,
+                    boosts: this.boosts,
                     projectiles: this.projectiles
                 });
             }
@@ -381,13 +500,65 @@ export class GameEngine {
 
         // Draw Enemies
         this.enemies.forEach(e => {
-            if (this.assets.alien.complete) {
-                this.ctx.drawImage(this.assets.alien, e.x, e.y, e.width, e.height);
+            const asset = this.assets['alien' + (e.size || 1)];
+            if (asset && asset.complete) {
+                if (e.size === 3) {
+                    this.ctx.save();
+                    this.ctx.filter = 'hue-rotate(90deg) brightness(1.2)';
+                    this.ctx.drawImage(asset, e.x, e.y, e.width, e.height);
+                    this.ctx.restore();
+                } else {
+                    this.ctx.drawImage(asset, e.x, e.y, e.width, e.height);
+                }
             } else {
-                this.ctx.fillStyle = e.type === 'elite' ? '#ffd700' : '#ff2a2a';
+                this.ctx.fillStyle = e.size === 3 ? '#ff00ff' : e.size === 2 ? '#ff8800' : '#00ff00';
                 this.ctx.fillRect(e.x, e.y, e.width, e.height);
             }
+
+            // HP Bar for elite aliens
+            if (e.maxHp > 1) {
+                this.ctx.fillStyle = 'rgba(255,0,0,0.3)';
+                this.ctx.fillRect(e.x, e.y - 10, e.width, 4);
+                this.ctx.fillStyle = '#ff3300';
+                this.ctx.fillRect(e.x, e.y - 10, e.width * (e.hp / e.maxHp), 4);
+            }
         });
+
+        // Draw Boosts
+        this.boosts.forEach(b => {
+            this.ctx.fillStyle = b.type === 'speed' ? '#00ffff' : '#ff00ff';
+            this.ctx.shadowBlur = 15;
+            this.ctx.shadowColor = this.ctx.fillStyle;
+
+            // Draw a glowing hex
+            this.ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const ang = (i * Math.PI) / 3;
+                const px = b.x + 20 + 15 * Math.cos(ang);
+                const py = b.y + 20 + 15 * Math.sin(ang);
+                if (i === 0) this.ctx.moveTo(px, py);
+                else this.ctx.lineTo(px, py);
+            }
+            this.ctx.closePath();
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+
+            // Icon letter
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = 'bold 16px Outfit';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(b.type === 'speed' ? 'S' : 'T', b.x + 20, b.y + 26);
+        });
+
+        // Draw Score Popups
+        this.scorePopups.forEach(p => {
+            this.ctx.globalAlpha = p.life;
+            this.ctx.fillStyle = p.color;
+            this.ctx.font = 'bold 20px Outfit';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(p.text, p.x, p.y);
+        });
+        this.ctx.globalAlpha = 1.0;
 
         // Draw Projectiles
         this.projectiles.forEach(p => {
