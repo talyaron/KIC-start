@@ -24,7 +24,7 @@ export class Player {
         this.velocityX = 0;
         this.velocityY = 0;
         this.speed = CONFIG.PLAYER.BASE_SPEED;
-        this.onGround = true;
+        this.angle = 0; // Visual rotation angle
 
         // Shooting
         this.fireRate = CONFIG.PLAYER.BASE_FIRE_RATE;
@@ -33,183 +33,116 @@ export class Player {
 
         // Input
         this.inputs = {
+            up: false,
+            down: false,
             left: false,
             right: false,
-            jump: false,
             shoot: false,
         };
     }
 
-    /**
-     * Apply upgrades to player
-     * @param {Object} upgrades - Upgrade levels
-     */
     applyUpgrades(upgrades) {
         if (!upgrades) return;
-
-        // Fire rate
-        if (upgrades.fireRateLevel) {
-            this.fireRate = CONFIG.UPGRADES.FIRE_RATE.effect(upgrades.fireRateLevel);
-        }
-
-        // Damage
-        if (upgrades.damageLevel) {
-            this.damage = CONFIG.UPGRADES.DAMAGE.effect(upgrades.damageLevel);
-        }
-
-        // HP
+        if (upgrades.fireRateLevel) this.fireRate = CONFIG.UPGRADES.FIRE_RATE.effect(upgrades.fireRateLevel);
+        if (upgrades.damageLevel) this.damage = CONFIG.UPGRADES.DAMAGE.effect(upgrades.damageLevel);
         if (upgrades.hpLevel) {
             const newMaxHp = CONFIG.UPGRADES.HP.effect(upgrades.hpLevel);
-            const hpRatio = this.hp / this.maxHp;
+            const ratio = this.hp / this.maxHp;
             this.maxHp = newMaxHp;
-            this.hp = Math.floor(newMaxHp * hpRatio);
+            this.hp = Math.floor(newMaxHp * ratio);
         }
-
-        // Speed
-        if (upgrades.speedLevel) {
-            this.speed = CONFIG.UPGRADES.SPEED.effect(upgrades.speedLevel);
-        }
+        if (upgrades.speedLevel) this.speed = CONFIG.UPGRADES.SPEED.effect(upgrades.speedLevel);
     }
 
-    /**
-     * Update player state
-     * @param {number} canvasWidth - Canvas width
-     * @param {number} canvasHeight - Canvas height
-     */
-    update(canvasWidth, canvasHeight) {
-        // Horizontal movement
-        if (this.inputs.left) {
-            this.velocityX = -this.speed;
-        } else if (this.inputs.right) {
-            this.velocityX = this.speed;
-        } else {
-            this.velocityX = 0;
-        }
-
-        // Jump
-        if (this.inputs.jump && this.onGround) {
-            this.velocityY = -CONFIG.PLAYER.JUMP_FORCE;
-            this.onGround = false;
-        }
-
-        // Apply gravity
-        if (!this.onGround) {
-            this.velocityY += CONFIG.PLAYER.GRAVITY;
-        }
-
-        // Update position
-        this.x += this.velocityX;
-        this.y += this.velocityY;
-
-        // Ground collision
-        const groundY = canvasHeight - this.height - 50; // 50px from bottom
-        if (this.y >= groundY) {
-            this.y = groundY;
-            this.velocityY = 0;
-            this.onGround = true;
-        }
-
-        // Bounds checking
-        this.x = clamp(this.x, 0, canvasWidth - this.width);
-        this.y = clamp(this.y, 0, canvasHeight - this.height);
-    }
-
-    /**
-     * Can shoot
-     * @param {number} currentTime - Current timestamp
-     * @returns {boolean} True if can shoot
-     */
     canShoot(currentTime) {
         return currentTime - this.lastShotTime >= this.fireRate;
     }
 
-    /**
-     * Record shot
-     * @param {number} currentTime - Current timestamp
-     */
-    shoot(currentTime) {
-        this.lastShotTime = currentTime;
+    takeDamage(amount) {
+        this.hp -= amount;
+        this.damageTaken += amount;
+        if (this.hp < 0) this.hp = 0;
     }
 
-    /**
-     * Take damage
-     * @param {number} damage - Damage amount
-     */
-    takeDamage(damage) {
-        this.hp -= damage;
-        this.damageTaken += damage;
+    collidesWith(x, y, width, height) {
+        const hitPadding = 5;
+        return (
+            this.x + hitPadding < x + width &&
+            this.x + this.width - hitPadding > x &&
+            this.y + hitPadding < y + height &&
+            this.y + this.height - hitPadding > y
+        );
+    }
 
-        if (this.hp < 0) {
-            this.hp = 0;
+    update() {
+        let moveX = 0;
+        let moveY = 0;
+
+        if (this.inputs.up) moveY -= 1;
+        if (this.inputs.down) moveY += 1;
+        if (this.inputs.left) moveX -= 1;
+        if (this.inputs.right) moveX += 1;
+
+        if (moveX !== 0 || moveY !== 0) {
+            const length = Math.sqrt(moveX * moveX + moveY * moveY);
+            moveX /= length;
+            moveY /= length;
+
+            this.velocityX = moveX * this.speed;
+            this.velocityY = moveY * this.speed;
+
+            // Face direction of movement
+            this.angle = Math.atan2(moveY, moveX) + Math.PI / 2;
+        } else {
+            this.velocityX *= 0.9;
+            this.velocityY *= 0.9;
         }
+
+        this.x += this.velocityX;
+        this.y += this.velocityY;
+
+        this.x = clamp(this.x, 0, CONFIG.WORLD_WIDTH);
+        this.y = clamp(this.y, 0, CONFIG.WORLD_HEIGHT);
     }
 
-    /**
-     * Add kill
-     * @param {string} enemyType - Enemy type ('red', 'yellow', 'blue')
-     * @param {number} score - Score to add
-     */
-    addKill(enemyType, score) {
-        this.kills[enemyType.toLowerCase()]++;
-        this.score += score;
-    }
-
-    /**
-     * Check if dead
-     * @returns {boolean} True if dead
-     */
-    isDead() {
-        return this.hp <= 0;
-    }
-
-    /**
-     * Render player
-     * @param {CanvasRenderingContext2D} ctx - Canvas context
-     */
     render(ctx) {
         const img = assets.get('spaceship');
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
 
         if (img) {
-            // Draw glow based on player color
-            ctx.save();
             ctx.shadowColor = this.color;
-            ctx.shadowBlur = 20;
-            ctx.drawImage(img, this.x, this.y, this.width, this.height);
-            ctx.restore();
+            ctx.shadowBlur = 35;
+            ctx.filter = 'brightness(1.2) contrast(1.1)';
+            ctx.drawImage(img, -this.width / 2, -this.height / 2, this.width, this.height);
         } else {
-            // Fallback
             ctx.fillStyle = this.color;
-            ctx.fillRect(this.x, this.y, this.width, this.height);
+            ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
         }
+        ctx.restore();
 
-        // Draw health bar above player
-        const barWidth = this.width;
+        this.renderHUD(ctx);
+    }
+
+    renderHUD(ctx) {
+        const barWidth = 50;
         const barHeight = 6;
-        const barY = this.y - 12;
+        const barY = this.y - 45;
 
-        // Background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(this.x, barY, barWidth, barHeight);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(this.x - barWidth / 2, barY, barWidth, barHeight);
 
-        // Health
         const healthPercent = this.hp / this.maxHp;
-        const healthBarWidth = barWidth * healthPercent;
+        if (healthPercent > 0.6) ctx.fillStyle = '#06ffa5';
+        else if (healthPercent > 0.3) ctx.fillStyle = '#ffbe0b';
+        else ctx.fillStyle = '#ff006e';
 
-        // Color based on health
-        if (healthPercent > 0.6) {
-            ctx.fillStyle = '#06ffa5';
-        } else if (healthPercent > 0.3) {
-            ctx.fillStyle = '#ffbe0b';
-        } else {
-            ctx.fillStyle = '#ff006e';
-        }
+        ctx.fillRect(this.x - barWidth / 2, barY, barWidth * healthPercent, barHeight);
 
-        ctx.fillRect(this.x, barY, healthBarWidth, barHeight);
-
-        // HP text
         ctx.fillStyle = 'white';
-        ctx.font = '10px Inter';
+        ctx.font = 'bold 10px Inter';
         ctx.textAlign = 'center';
-        ctx.fillText(`${Math.ceil(this.hp)}`, this.x + this.width / 2, barY - 2);
+        ctx.fillText(`${Math.ceil(this.hp)}`, this.x, barY - 5);
     }
 }

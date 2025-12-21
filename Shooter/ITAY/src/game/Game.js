@@ -18,7 +18,7 @@ export class Game {
         this.currentUser = currentUser;
         this.isHost = isHost;
 
-        // Setup canvas
+        // Setup canvas (internal resolution)
         this.canvas.width = CONFIG.CANVAS_WIDTH;
         this.canvas.height = CONFIG.CANVAS_HEIGHT;
 
@@ -28,107 +28,81 @@ export class Game {
         this.bullets = [];
         this.running = false;
         this.gameStartTime = Date.now();
+        this.teamScore = roomData?.teamScore || 0;
 
-        // Local player
-        this.localPlayer = null;
+        // Camera System
+        this.cameraX = 0;
+        this.cameraY = 0;
 
-        // Enemy spawner (synchronized via matchSeed)
+        // Input tracking
+        this.keys = {};
+
+        // Local player initialized in middle of infinite world
+        this.localPlayer = new Player(currentUser.uid, CONFIG.WORLD_WIDTH / 2, CONFIG.WORLD_HEIGHT / 2);
+        this.players.set(currentUser.uid, this.localPlayer);
+
+        // Enemy spawner (Deterministic)
         if (roomData && roomData.matchSeed) {
-            this.spawner = new EnemySpawner(roomData.matchSeed, this.canvas.width);
-        } else if (roomCode === 'local') {
-            this.spawner = new EnemySpawner(Math.floor(Math.random() * 1000000), this.canvas.width);
+            this.spawner = new EnemySpawner(roomData.matchSeed, CONFIG.WORLD_WIDTH);
+        } else {
+            this.spawner = new EnemySpawner(Math.floor(Math.random() * 1000000), CONFIG.WORLD_WIDTH);
         }
 
-        // Initialize players from room data
-        this.initializePlayers(roomData);
+        // Parallax Star Layers
+        this.starLayers = [
+            this.generateStars(300, 0.1), // Far (slow)
+            this.generateStars(200, 0.3), // Mid
+            this.generateStars(100, 0.6)  // Near (fast)
+        ];
 
-        // Input handling
-        this.keys = {};
+        this.setupNetworking();
         this.setupInput();
-
-        // Network sync (throttled)
-        this.syncPosition = throttle(this.syncPositionToServer.bind(this), CONFIG.NETWORK.POSITION_UPDATE_RATE);
-        this.syncStats = throttle(this.syncStatsToServer.bind(this), CONFIG.NETWORK.SCORE_UPDATE_RATE);
-
-        // Animation frame ID
-        this.animationId = null;
-
-        // Listen for room updates
-        this.setupNetworkListeners();
     }
 
-    setupNetworkListeners() {
+    generateStars(count, depth) {
+        const stars = [];
+        for (let i = 0; i < count; i++) {
+            stars.push({
+                x: Math.random() * CONFIG.CANVAS_WIDTH,
+                y: Math.random() * CONFIG.CANVAS_HEIGHT,
+                size: Math.random() * 2 * depth,
+                opacity: Math.random() * 0.5 + 0.2,
+                depth: depth
+            });
+        }
+        return stars;
+    }
+
+    setupNetworking() {
         if (this.roomCode === 'local') return;
 
         this.unsubscribeRoom = onRoomChange(this.roomCode, (roomData) => {
-            // Handle game end signal
             if (roomData.status === 'ended' && this.running) {
-                console.log('🏁 Game end signal received from server');
                 this.stop();
                 return;
             }
 
-            // Update other players
+            // Sync other players
             Object.keys(roomData.players || {}).forEach(uid => {
                 if (uid !== this.currentUser.uid) {
                     this.updatePlayerFromServer(uid, roomData.players[uid]);
                 }
             });
 
-            // Update team score
             this.teamScore = roomData.teamScore || 0;
         });
     }
 
-    /**
-     * Initialize players from room data
-     * @param {Object} roomData - Room data
-     */
-    initializePlayers(roomData) {
-        const playerUids = Object.keys(roomData.players || {});
-        const spacing = this.canvas.width / (playerUids.length + 1);
-
-        playerUids.forEach((uid, index) => {
-            const playerData = roomData.players[uid];
-            const x = spacing * (index + 1) - CONFIG.PLAYER.WIDTH / 2;
-            const y = this.canvas.height - CONFIG.PLAYER.HEIGHT - 100;
-
-            const player = new Player(uid, x, y);
-            player.hp = playerData.hp || CONFIG.PLAYER.BASE_HP;
-            player.score = playerData.score || 0;
-
-            this.players.set(uid, player);
-
-            if (uid === this.currentUser.uid) {
-                this.localPlayer = player;
-
-                // Apply upgrades to local player
-                if (this.currentUser.upgrades) {
-                    player.applyUpgrades(this.currentUser.upgrades);
-                }
-            }
-        });
-    }
-
-    /**
-     * Setup input handlers
-     */
     setupInput() {
         window.addEventListener('keydown', (e) => {
             this.keys[e.key] = true;
-
             if (!this.localPlayer) return;
 
-            switch (e.key) {
-                case 'ArrowLeft':
-                    this.localPlayer.inputs.left = true;
-                    break;
-                case 'ArrowRight':
-                    this.localPlayer.inputs.right = true;
-                    break;
-                case 'ArrowUp':
-                    this.localPlayer.inputs.jump = true;
-                    break;
+            switch (e.key.toLowerCase()) {
+                case 'a': case 'arrowleft': this.localPlayer.inputs.left = true; break;
+                case 'd': case 'arrowright': this.localPlayer.inputs.right = true; break;
+                case 'w': case 'arrowup': this.localPlayer.inputs.up = true; break;
+                case 's': case 'arrowdown': this.localPlayer.inputs.down = true; break;
                 case ' ':
                     this.localPlayer.inputs.shoot = true;
                     e.preventDefault();
@@ -138,303 +112,166 @@ export class Game {
 
         window.addEventListener('keyup', (e) => {
             this.keys[e.key] = false;
-
             if (!this.localPlayer) return;
 
-            switch (e.key) {
-                case 'ArrowLeft':
-                    this.localPlayer.inputs.left = false;
-                    break;
-                case 'ArrowRight':
-                    this.localPlayer.inputs.right = false;
-                    break;
-                case 'ArrowUp':
-                    this.localPlayer.inputs.jump = false;
-                    break;
-                case ' ':
-                    this.localPlayer.inputs.shoot = false;
-                    break;
+            switch (e.key.toLowerCase()) {
+                case 'a': case 'arrowleft': this.localPlayer.inputs.left = false; break;
+                case 'd': case 'arrowright': this.localPlayer.inputs.right = false; break;
+                case 'w': case 'arrowup': this.localPlayer.inputs.up = false; break;
+                case 's': case 'arrowdown': this.localPlayer.inputs.down = false; break;
+                case ' ': this.localPlayer.inputs.shoot = false; break;
             }
         });
     }
 
-    /**
-     * Start game loop
-     */
     start() {
         this.running = true;
         this.gameLoop();
     }
 
-    /**
-     * Stop game
-     */
     stop() {
         this.running = false;
-        if (this.animationId) {
-            cancelAnimationFrame(this.animationId);
-        }
-        if (this.unsubscribeRoom) {
-            this.unsubscribeRoom();
-            this.unsubscribeRoom = null;
-        }
-
-        // Final sync of stats
+        if (this.animationId) cancelAnimationFrame(this.animationId);
         this.syncStatsToServer();
     }
 
-    /**
-     * Main game loop
-     */
     gameLoop() {
         if (!this.running) return;
-
         const currentTime = Date.now();
-
-        // Update
         this.update(currentTime);
-
-        // Render
         this.render();
-
-        // Continue loop
         this.animationId = requestAnimationFrame(() => this.gameLoop());
     }
 
-    /**
-     * Update game state
-     * @param {number} currentTime - Current timestamp
-     */
     update(currentTime) {
-        // Update local player
         if (this.localPlayer) {
-            this.localPlayer.update(this.canvas.width, this.canvas.height);
+            this.localPlayer.update();
 
-            // Handle shooting
+            // Camera follow (Lerp for smoothness)
+            const targetX = this.localPlayer.x - this.canvas.width / 2;
+            const targetY = this.localPlayer.y - this.canvas.height / 2;
+            this.cameraX += (targetX - this.cameraX) * 0.1;
+            this.cameraY += (targetY - this.cameraY) * 0.1;
+
             if (this.localPlayer.inputs.shoot && this.localPlayer.canShoot(currentTime)) {
                 this.shoot(this.localPlayer, currentTime);
             }
-
-            // Sync position and stats to server
             this.syncPosition();
             this.syncStats();
         }
 
-        // NOTE: Remote players skip local physics (gravity/jumping) to prevent jitter.
-        // They are updated via setupNetworkListeners -> updatePlayerFromServer.
-
-        // Spawn enemies (Deterministic for all players via matchSeed)
+        // Spawn logic around player world pos
         if (this.spawner) {
-            this.spawner.spawn(this.enemies, currentTime);
+            this.spawner.spawnAround(this.enemies, currentTime, this.localPlayer.x, this.localPlayer.y);
         }
 
-        // Update enemies
-        for (const enemy of this.enemies) {
-            enemy.update();
+        // Entities update
+        this.enemies.forEach(enemy => enemy.update());
+        this.bullets.forEach(bullet => bullet.update());
 
-            // Check if enemy hit bottom
-            if (enemy.isOffScreen(this.canvas.height)) {
-                enemy.destroy();
-                // Penalty: team loses points (host handles this)
-                if (this.isHost) {
-                    this.handleEnemyReachedBottom(enemy);
-                }
-            }
-        }
-
-        // Update bullets
-        for (const bullet of this.bullets) {
-            bullet.update();
-
-            if (bullet.isOffScreen()) {
-                bullet.destroy();
-            }
-        }
-
-        // Check collisions
+        // Collisions & cleanup
         this.checkCollisions();
-
-        // Clean up destroyed entities
+        this.bullets = this.bullets.filter(b => b.active && !b.isExpired(CONFIG.WORLD_WIDTH, CONFIG.WORLD_HEIGHT));
         this.enemies = this.enemies.filter(e => e.active);
-        this.bullets = this.bullets.filter(b => b.active);
     }
 
-    /**
-     * Shoot bullet
-     * @param {Player} player - Player shooting
-     * @param {number} currentTime - Current timestamp
-     */
-    shoot(player, currentTime) {
-        const bulletX = player.x + player.width / 2 - CONFIG.BULLET.WIDTH / 2;
-        const bulletY = player.y;
-
-        const bullet = new Bullet(bulletX, bulletY, player.uid, player.damage);
+    shoot(player, time) {
+        const bullet = new Bullet(player.x, player.y, player.angle, player.uid, player.damage);
         this.bullets.push(bullet);
-
-        player.shoot(currentTime);
+        player.lastShotTime = time;
         audioManager.play('shoot');
     }
 
-    /**
-     * Check all collisions
-     */
     checkCollisions() {
-        // Bullet-Enemy collisions
-        for (const bullet of this.bullets) {
-            if (!bullet.active) continue;
-
-            for (const enemy of this.enemies) {
-                if (!enemy.active) continue;
-
-                if (bullet.collidesWith(enemy.x, enemy.y, enemy.width, enemy.height)) {
-                    // Hit!
-                    bullet.destroy();
-                    enemy.destroy();
-                    audioManager.play('enemyHit');
-
-                    // Award score to bullet owner
-                    const owner = this.players.get(bullet.ownerId);
-                    if (owner) {
-                        owner.addKill(enemy.type, enemy.score);
-                        // score sync is now handled by throttled syncStats()
-                    }
-
-                    break;
-                }
-            }
-        }
-
-        // Enemy-Player collisions
         for (const enemy of this.enemies) {
             if (!enemy.active) continue;
 
-            for (const player of this.players.values()) {
-                if (enemy.collidesWith(player.x, player.y, player.width, player.height)) {
-                    enemy.destroy();
-                    player.takeDamage(enemy.damage);
-                    audioManager.play('playerHit');
+            // Player collision
+            if (this.localPlayer.collidesWith(enemy.x, enemy.y, enemy.width, enemy.height)) {
+                this.localPlayer.takeDamage(enemy.damage);
+                enemy.destroy();
+                audioManager.play('playerHit');
+            }
 
-                    // HP sync is now handled by throttled syncStats()
-                    break;
+            // Bullet collision
+            for (const bullet of this.bullets) {
+                if (bullet.active && bullet.collidesWith(enemy.x, enemy.y, enemy.width, enemy.height)) {
+                    enemy.takeDamage(bullet.damage);
+                    bullet.destroy();
+                    if (!enemy.active) {
+                        this.localPlayer.score += enemy.score;
+                        audioManager.play('enemyHit');
+                    }
                 }
             }
         }
     }
 
-    /**
-     * Handle enemy reaching bottom (host only)
-     * @param {Enemy} enemy - Enemy that reached bottom
-     */
-    handleEnemyReachedBottom(enemy) {
-        if (this.roomCode !== 'local') {
-            updateTeamScore(this.roomCode, CONFIG.SCORING.ENEMY_BOTTOM_PENALTY);
-        }
-        console.log('Enemy reached bottom, team penalty:', CONFIG.SCORING.ENEMY_BOTTOM_PENALTY);
-    }
+    render() {
+        // 1. Clear background
+        this.ctx.fillStyle = '#000000';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-    /**
-     * Sync local player position to server
-     */
-    syncPositionToServer() {
-        if (!this.localPlayer || this.roomCode === 'local') return;
-        updatePlayerPosition(this.roomCode, this.currentUser.uid, {
-            x: this.localPlayer.x,
-            y: this.localPlayer.y
+        // 2. Render Parallax Stars
+        this.starLayers.forEach(layer => {
+            this.ctx.save();
+            layer.forEach(star => {
+                // Parallax wrap logic
+                const px = (star.x - this.cameraX * star.depth) % this.canvas.width;
+                const py = (star.y - this.cameraY * star.depth) % this.canvas.height;
+                const finalX = px < 0 ? px + this.canvas.width : px;
+                const finalY = py < 0 ? py + this.canvas.height : py;
+
+                this.ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
+                this.ctx.beginPath();
+                this.ctx.arc(finalX, finalY, star.size, 0, Math.PI * 2);
+                this.ctx.fill();
+            });
+            this.ctx.restore();
         });
+
+        // 3. Render World Entities
+        this.ctx.save();
+        this.ctx.translate(-this.cameraX, -this.cameraY);
+
+        this.enemies.forEach(e => e.render(this.ctx));
+        this.bullets.forEach(b => b.render(this.ctx));
+        for (const p of this.players.values()) p.render(this.ctx);
+
+        this.ctx.restore();
     }
 
-    /**
-     * Batch sync for stats (score, kills, hp, damageTaken)
-     */
-    syncStatsToServer() {
-        if (!this.localPlayer || this.roomCode === 'local') return;
+    syncPosition = throttle(() => {
+        if (this.roomCode === 'local') return;
+        updatePlayerPosition(this.roomCode, this.currentUser.uid, this.localPlayer.x, this.localPlayer.y, this.localPlayer.angle);
+    }, CONFIG.NETWORK.POSITION_UPDATE_RATE);
 
-        // Use a generic update for the entire player object in the room
-        // to minimize individual update calls
+    syncStats = throttle(() => {
+        this.syncStatsToServer();
+    }, CONFIG.NETWORK.SCORE_UPDATE_RATE);
+
+    syncStatsToServer() {
+        if (this.roomCode === 'local') return;
         const updates = {
             score: this.localPlayer.score,
-            hp: Math.max(0, Math.ceil(this.localPlayer.hp)),
-            kills: { ...this.localPlayer.kills },
-            damageTaken: this.localPlayer.damageTaken
+            hp: Math.ceil(this.localPlayer.hp),
+            angle: this.localPlayer.angle
         };
-
-        // We use the base database ref to do a single update
         database.ref(`rooms/${this.roomCode}/players/${this.currentUser.uid}`).update(updates);
     }
 
-    /**
-     * Render game
-     */
-    render() {
-        // Draw space background
-        const bgImg = assets.get('space_bg');
-        if (bgImg) {
-            this.ctx.save();
-            // Brighten background for better visibility of asteroids
-            this.ctx.filter = 'brightness(1.8) contrast(1.2)';
-            this.ctx.drawImage(bgImg, 0, 0, this.canvas.width, this.canvas.height);
-            this.ctx.restore();
-        } else {
-            // Clear canvas fallback
-            this.ctx.fillStyle = CONFIG.color || '#0a0e27';
-            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        }
-
-        // Render ground line (making it more subtle/sci-fi)
-        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-        this.ctx.lineWidth = 2;
-        this.ctx.beginPath();
-        this.ctx.moveTo(0, this.canvas.height - 50);
-        this.ctx.lineTo(this.canvas.width, this.canvas.height - 50);
-        this.ctx.stroke();
-
-        // Render enemies
-        for (const enemy of this.enemies) {
-            enemy.render(this.ctx);
-        }
-
-        // Render bullets
-        for (const bullet of this.bullets) {
-            bullet.render(this.ctx);
-        }
-
-        // Render players
-        for (const player of this.players.values()) {
-            player.render(this.ctx);
-        }
-    }
-
-    /**
-     * Update player data from server
-     * @param {string} uid - Player UID
-     * @param {Object} data - Player data
-     */
     updatePlayerFromServer(uid, data) {
         let player = this.players.get(uid);
-
-        // Dynamically add player if they join late or were missed at start
         if (!player) {
-            console.log(`👤 Adding new player found in room: ${uid}`);
-            // Use provided coordinates or default to middle ground
-            const x = data.x !== undefined ? data.x : this.canvas.width / 2;
-            const y = data.y !== undefined ? data.y : this.canvas.height - 150;
-            player = new Player(uid, x, y);
+            player = new Player(uid, data.x, data.y);
             this.players.set(uid, player);
         }
-
         if (player === this.localPlayer) return;
 
-        // Update position smoothly
-        if (data.x !== undefined) player.x = data.x;
-        if (data.y !== undefined) player.y = data.y;
-
-        // Update stats
-        if (data.hp !== undefined) player.hp = data.hp;
-        if (data.score !== undefined) player.score = data.score;
-
-        // Update kills
-        if (data.kills) {
-            player.kills = { ...data.kills };
-        }
+        player.x = data.x ?? player.x;
+        player.y = data.y ?? player.y;
+        player.angle = data.angle ?? player.angle;
+        player.hp = data.hp ?? player.hp;
+        player.score = data.score ?? player.score;
     }
 }

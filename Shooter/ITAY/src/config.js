@@ -1,7 +1,11 @@
 // Game Configuration Constants
 
 export const CONFIG = {
-    // Canvas
+    // World Dimensions (for 360 movement)
+    WORLD_WIDTH: 5000,
+    WORLD_HEIGHT: 5000,
+
+    // Screen Dimensions (Internal resolution)
     CANVAS_WIDTH: 1200,
     CANVAS_HEIGHT: 800,
 
@@ -10,26 +14,24 @@ export const CONFIG = {
         WIDTH: 40,
         HEIGHT: 50,
         BASE_HP: 100,
-        BASE_SPEED: 5,
-        BASE_FIRE_RATE: 300, // ms between shots
+        BASE_SPEED: 7,
+        BASE_FIRE_RATE: 250, // ms between shots
         BASE_DAMAGE: 20,
-        JUMP_FORCE: 10,
-        GRAVITY: 0.5,
     },
 
     // Enemy Settings
     ENEMIES: {
         RED: {
-            type: 'RED', // SMALL (Scaled 3x from 30)
+            type: 'RED', // SMALL
             color: '#ff006e',
             damage: 10,
             score: 10,
             size: 90,
-            speed: 4, // Fast physics
+            speed: 1.5,
             spawnWeight: 60,
         },
         YELLOW: {
-            type: 'YELLOW', // MEDIUM (Scaled 2x from 55)
+            type: 'YELLOW', // MEDIUM
             color: '#ffbe0b',
             damage: 25,
             score: 25,
@@ -38,34 +40,35 @@ export const CONFIG = {
             spawnWeight: 30,
         },
         BLUE: {
-            type: 'BLUE', // LARGE (Scaled 1.5x from 100)
+            type: 'BLUE', // LARGE
             color: '#3a86ff',
             damage: 50,
             score: 100,
             size: 150,
-            speed: 1, // Slow physics
+            speed: 4,
             spawnWeight: 10,
         },
     },
 
     // Scoring
     SCORING: {
-        ENEMY_BOTTOM_PENALTY: -10, // Points lost when enemy hits bottom
+        ENEMY_BOTTOM_PENALTY: -10,
     },
 
     // Spawning
     SPAWN: {
-        INTERVAL: 1500, // ms between spawn checks
-        MAX_ENEMIES: 15, // Maximum enemies on screen
+        INTERVAL: 1200,
+        MAX_ENEMIES: 35,
         INITIAL_DIFFICULTY: 1,
-        DIFFICULTY_INCREASE_RATE: 0.1, // Per 10 seconds
+        DIFFICULTY_INCREASE_RATE: 0.15,
+        SPAWN_RADIUS: 1000, // Distance from player to spawn
     },
 
     // Bullet Settings
     BULLET: {
-        WIDTH: 6,
-        HEIGHT: 15,
-        SPEED: 10,
+        WIDTH: 8,
+        HEIGHT: 20,
+        SPEED: 15,
         COLOR: '#06ffa5',
     },
 
@@ -74,25 +77,25 @@ export const CONFIG = {
         FIRE_RATE: {
             baseCost: 100,
             maxLevel: 10,
-            effect: (level) => Math.max(100, 300 - (level * 20)), // Decreases fire rate delay
+            effect: (level) => Math.max(100, 300 - (level * 20)),
             costMultiplier: 1.5,
         },
         DAMAGE: {
             baseCost: 150,
             maxLevel: 10,
-            effect: (level) => 20 + (level * 5), // Increases bullet damage
+            effect: (level) => 20 + (level * 5),
             costMultiplier: 1.6,
         },
         HP: {
             baseCost: 200,
             maxLevel: 10,
-            effect: (level) => 100 + (level * 10), // Increases max HP
+            effect: (level) => 100 + (level * 10),
             costMultiplier: 1.7,
         },
         SPEED: {
             baseCost: 120,
             maxLevel: 10,
-            effect: (level) => 5 + (level * 0.5), // Increases movement speed
+            effect: (level) => 7 + (level * 0.5),
             costMultiplier: 1.4,
         },
     },
@@ -167,13 +170,13 @@ export const CONFIG = {
     // Countdown
     COUNTDOWN: {
         START: 5,
-        INTERVAL: 1000, // ms
+        INTERVAL: 1000,
     },
 
     // Networking
     NETWORK: {
-        POSITION_UPDATE_RATE: 150, // ms (approx 6.6 updates per second)
-        SCORE_UPDATE_RATE: 800,     // ms (sync score to room every 800ms)
+        POSITION_UPDATE_RATE: 100, // Faster for smoother 360 movement
+        SCORE_UPDATE_RATE: 800,
         MAX_PLAYERS: 4,
         ROOM_CODE_LENGTH: 6,
         USER_CODE_LENGTH: 6,

@@ -1,12 +1,12 @@
 // Bullet Entity
-
 import { CONFIG } from '../config.js';
 import { assets } from './AssetManager.js';
 
 export class Bullet {
-    constructor(x, y, ownerId, damage) {
+    constructor(x, y, angle, ownerId, damage) {
         this.x = x;
         this.y = y;
+        this.angle = angle;
         this.width = CONFIG.BULLET.WIDTH;
         this.height = CONFIG.BULLET.HEIGHT;
         this.speed = CONFIG.BULLET.SPEED;
@@ -14,6 +14,14 @@ export class Bullet {
         this.ownerId = ownerId;
         this.damage = damage;
         this.active = true;
+
+        // Visual trajectory
+        this.velocityX = Math.cos(angle - Math.PI / 2) * this.speed;
+        this.velocityY = Math.sin(angle - Math.PI / 2) * this.speed;
+
+        // Trail effect for high visibility
+        this.trail = [];
+        this.maxTrailLength = 10;
     }
 
     /**
@@ -22,16 +30,22 @@ export class Bullet {
     update() {
         if (!this.active) return;
 
-        // Move upward
-        this.y -= this.speed;
+        // Store positions for the trail
+        this.trail.unshift({ x: this.x, y: this.y });
+        if (this.trail.length > this.maxTrailLength) {
+            this.trail.pop();
+        }
+
+        // Move along angle
+        this.x += this.velocityX;
+        this.y += this.velocityY;
     }
 
     /**
-     * Check if bullet is off screen
-     * @returns {boolean} True if off screen
+     * Check if bullet is off world boundaries or traveled too far
      */
-    isOffScreen() {
-        return this.y + this.height < 0;
+    isExpired(worldWidth, worldHeight) {
+        return this.x < 0 || this.x > worldWidth || this.y < 0 || this.y > worldHeight;
     }
 
     /**
@@ -41,46 +55,51 @@ export class Bullet {
         this.active = false;
     }
 
-    /**
-     * Check collision with rect
-     * @param {number} x - Rect x
-     * @param {number} y - Rect y
-     * @param {number} width - Rect width
-     * @param {number} height - Rect height
-     * @returns {boolean} True if colliding
-     */
     collidesWith(x, y, width, height) {
         return this.active &&
-            this.x < x + width &&
-            this.x + this.width > x &&
-            this.y < y + height &&
-            this.y + this.height > y;
+            this.x > x && this.x < x + width &&
+            this.y > y && this.y < y + height;
     }
 
     /**
      * Render bullet
-     * @param {CanvasRenderingContext2D} ctx - Canvas context
      */
     render(ctx) {
         if (!this.active) return;
 
+        // Draw energy trail
+        ctx.save();
+        this.trail.forEach((pos, index) => {
+            const alpha = (this.maxTrailLength - index) / this.maxTrailLength;
+            ctx.fillStyle = this.color;
+            ctx.globalAlpha = alpha * 0.5;
+            const trailSize = this.width * (0.3 + alpha * 0.7);
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, trailSize / 2, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        ctx.restore();
+
         const img = assets.get('missile');
 
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+
         if (img) {
-            ctx.save();
             ctx.shadowColor = this.color;
-            ctx.shadowBlur = 10;
-            ctx.drawImage(img, this.x, this.y, this.width, this.height);
-            ctx.restore();
+            ctx.shadowBlur = 25;
+            ctx.drawImage(img, -this.width / 2, -this.height / 2, this.width, this.height);
+
+            // Double pass for glow
+            ctx.globalAlpha = 0.6;
+            ctx.drawImage(img, -this.width / 2, -this.height / 2, this.width, this.height);
         } else {
             ctx.fillStyle = this.color;
-            ctx.fillRect(this.x, this.y, this.width, this.height);
-
-            // Add glow effect
             ctx.shadowColor = this.color;
-            ctx.shadowBlur = 10;
-            ctx.fillRect(this.x, this.y, this.width, this.height);
-            ctx.shadowBlur = 0;
+            ctx.shadowBlur = 20;
+            ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
         }
+        ctx.restore();
     }
 }
