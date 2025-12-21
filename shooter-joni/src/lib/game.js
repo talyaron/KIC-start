@@ -24,17 +24,13 @@ export class GameEngine {
 
         // Assets
         this.assets = {
-            spaceship: new Image(),
-            alien1: new Image(),
-            alien2: new Image(),
-            alien3: new Image(),
-            star: new Image()
+            spaceship: this.loadImage('/assets/spaceship.png'),
+            alien1: this.loadImage('/assets/alien_1.png'),
+            alien2: this.loadImage('/assets/alien_2.png'),
+            alien3: this.loadImage('/assets/alien_3.png'),
+            star: this.loadImage('/assets/star.png')
         };
-        this.assets.spaceship.src = '/src/assets/spaceship.png';
-        this.assets.alien1.src = '/src/assets/alien_1.png';
-        this.assets.alien2.src = '/src/assets/alien_2.png';
-        this.assets.alien3.src = '/src/assets/alien_3.png';
-        this.assets.star.src = '/src/assets/star.png';
+        this.processedAssets = {}; // { key: processedCanvas }
 
         this.tintedShipCache = {}; // { color: canvas }
 
@@ -129,6 +125,16 @@ export class GameEngine {
         }
     }
 
+    loadImage(src) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = src;
+        img.onload = () => {
+            console.log('Loaded asset:', src);
+        };
+        return img;
+    }
+
     addParticles(x, y, color, count = 10) {
         for (let i = 0; i < count; i++) {
             this.particles.push({
@@ -143,28 +149,36 @@ export class GameEngine {
     }
 
     processAsset(img) {
-        if (!img.complete || img.width <= 0) return null;
+        if (!img.complete || img.naturalWidth <= 0) return null;
+
         const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0);
 
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageData.data;
 
-        // Chromakey/Background Removal: Kill white-ish or grey-ish backgrounds
+        // Chromakey: Kill ANYTHING white-ish, light grey (checkerboard), or purely black
+        // Checkerboards are usually alternations of very light grey and white.
         for (let i = 0; i < data.length; i += 4) {
             const r = data[i];
             const g = data[i + 1];
             const b = data[i + 2];
 
-            // If it's very white or very light grey (checkerboard backgrounds are usually grey)
-            if (r > 200 && g > 200 && b > 200) {
-                data[i + 3] = 0; // Transparent
+            // Aggressive white/grey removal:
+            // If R, G, B are all high (light colors) and close to each other (grey/white)
+            const maxVal = Math.max(r, g, b);
+            const minVal = Math.min(r, g, b);
+            const diff = maxVal - minVal;
+
+            if (maxVal > 180 && diff < 30) {
+                data[i + 3] = 0;
             }
-            // If it's purely black (sometimes helpful for space assets)
-            if (r < 15 && g < 15 && b < 15) {
+
+            // Also pure black backgrounds
+            if (maxVal < 20) {
                 data[i + 3] = 0;
             }
         }
@@ -173,10 +187,11 @@ export class GameEngine {
     }
 
     getTintedShip(color) {
-        if (!this.assets.spaceship.complete) return null;
+        const ship = this.assets.spaceship;
+        if (!ship.complete || ship.naturalWidth <= 0) return null;
         if (this.tintedShipCache[color]) return this.tintedShipCache[color];
 
-        const processed = this.processAsset(this.assets.spaceship);
+        const processed = this.processAsset(ship);
         if (!processed) return null;
 
         const offscreen = document.createElement('canvas');
@@ -524,9 +539,13 @@ export class GameEngine {
             // Render ship sprite
             const tintedShip = this.getTintedShip(p.color || '#fff');
             if (tintedShip) {
-                this.ctx.drawImage(tintedShip, p.x, p.y);
-            } else if (this.assets.spaceship.complete) {
-                this.ctx.drawImage(this.assets.spaceship, p.x, p.y, 60, 60);
+                try {
+                    this.ctx.drawImage(tintedShip, p.x, p.y);
+                } catch (e) { }
+            } else if (this.assets.spaceship.complete && this.assets.spaceship.naturalWidth > 0) {
+                try {
+                    this.ctx.drawImage(this.assets.spaceship, p.x, p.y, 60, 60);
+                } catch (e) { }
             } else {
                 this.ctx.fillStyle = p.color || '#fff';
                 this.ctx.fillRect(p.x, p.y, 50, 50);
@@ -542,21 +561,25 @@ export class GameEngine {
         // Draw Enemies
         this.enemies.forEach(e => {
             const rawAsset = this.assets['alien' + (e.size || 1)];
-            if (rawAsset && rawAsset.complete) {
-                // Remove background on-the-fly or cache it
+            if (rawAsset && rawAsset.complete && rawAsset.naturalWidth > 0) {
                 const cacheKey = 'processed_alien_' + e.size;
-                if (!this.tintedShipCache[cacheKey]) {
-                    this.tintedShipCache[cacheKey] = this.processAsset(rawAsset);
+                if (!this.processedAssets[cacheKey]) {
+                    this.processedAssets[cacheKey] = this.processAsset(rawAsset);
                 }
-                const processed = this.tintedShipCache[cacheKey];
+                const imgToDraw = this.processedAssets[cacheKey] || rawAsset;
 
-                if (e.size === 3) {
-                    this.ctx.save();
-                    this.ctx.filter = 'hue-rotate(90deg) brightness(1.2)';
-                    this.ctx.drawImage(processed || rawAsset, e.x, e.y, e.width, e.height);
-                    this.ctx.restore();
-                } else {
-                    this.ctx.drawImage(processed || rawAsset, e.x, e.y, e.width, e.height);
+                try {
+                    if (e.size === 3) {
+                        this.ctx.save();
+                        this.ctx.filter = 'hue-rotate(90deg) brightness(1.2)';
+                        this.ctx.drawImage(imgToDraw, e.x, e.y, e.width, e.height);
+                        this.ctx.restore();
+                    } else {
+                        this.ctx.drawImage(imgToDraw, e.x, e.y, e.width, e.height);
+                    }
+                } catch (e) {
+                    this.ctx.fillStyle = e.size === 3 ? '#ff00ff' : e.size === 2 ? '#ff8800' : '#00ff00';
+                    this.ctx.fillRect(e.x, e.y, e.width, e.height);
                 }
             } else {
                 this.ctx.fillStyle = e.size === 3 ? '#ff00ff' : e.size === 2 ? '#ff8800' : '#00ff00';
