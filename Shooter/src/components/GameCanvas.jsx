@@ -31,12 +31,14 @@ export default function GameCanvas() {
             false,
             (state) => {
                 // On State Update (Host Only)
-                if (state.type === 'UPDATE_ENEMIES') {
-                    // Throttled in loop or assumed reasonably called
-                    updateDoc(roomRef, { enemies: state.enemies }).catch(() => { });
+                if (state.type === 'UPDATE_STATE') {
+                    updateDoc(roomRef, {
+                        enemies: state.enemies,
+                        projectiles: state.projectiles
+                    }).catch(() => { });
                 } else if (state.type === 'DAMAGE') {
                     updateDoc(roomRef, {
-                        [`players.${state.uid}.hp`]: state.newHp || 50 // Fail safe
+                        [`players.${state.uid}.hp`]: state.newHp || 50
                     }).catch(() => { });
                 }
             },
@@ -59,8 +61,9 @@ export default function GameCanvas() {
                 engine.updatePlayers(data.players);
             }
 
-            if (!engine.isHost && data.enemies) {
-                engine.updateEnemies(data.enemies);
+            if (!engine.isHost) {
+                if (data.enemies) engine.updateEnemies(data.enemies);
+                if (data.projectiles) engine.updateProjectiles(data.projectiles);
             }
         });
 
@@ -90,15 +93,31 @@ export default function GameCanvas() {
             const pos = engine.handleInput(keys.current, user.uid);
 
             if (pos) {
-                // Write to Firestore - Dot notation
-                updateDoc(roomRef, {
+                // Update Payload
+                const updatePayload = {
                     [`players.${user.uid}.x`]: pos.x,
                     [`players.${user.uid}.y`]: pos.y
-                }).catch(() => { }); // catch errors silently to avoid lag spikes on console
+                };
 
+                // Check Shoot
                 if (keys.current.shoot) {
-                    engine.addProjectile(pos.x + 20, pos.y, user.uid);
+                    const shootTs = engine.tryShoot(user.uid);
+                    if (shootTs) {
+                        updatePayload[`players.${user.uid}.lastShoot`] = shootTs;
+                        // Also Add Local Projectile for immediate feedback (prediction)
+                        // But Host will also add it. We need to avoid dups?
+                        // GameEngine logic handles "updateProjectiles" which overrides local.
+                        // So local might flicker but it feels responsive.
+                        // Ideally we show local until server overrides.
+                        // For now, let's just send signal and let server auth handle it for consistency.
+                        // Or we can add it safely if we don't clear list instanty.
+                        // Let's just Add it:
+                        engine.addProjectile(pos.x + 20, pos.y, user.uid, '#00f0ff');
+                    }
                 }
+
+                // Write to Firestore
+                updateDoc(roomRef, updatePayload).catch(() => { });
             }
         }, 100); // 100ms = 10Hz
 

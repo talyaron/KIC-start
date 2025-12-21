@@ -16,10 +16,11 @@ export class GameEngine {
         this.lastTime = 0;
 
         // Config
-        this.playerSpeed = 10; // Faster movement
+        this.playerSpeed = 30; // SUPER FAST
         this.enemySpeed = 2;
         this.spawnTimer = 0;
-        this.lastShootTimes = {}; // Map { uid: timestamp }
+        this.lastShootTimes = {}; // Map { uid: timestamp } local debounce
+        this.processedShootTimes = {}; // Map { uid: timestamp } host state tracking
     }
 
     start() {
@@ -33,12 +34,30 @@ export class GameEngine {
 
     // External input
     updatePlayers(serverPlayers) {
+        // If Host, check for new shoot timestamps
+        if (this.isHost) {
+            Object.keys(serverPlayers).forEach(uid => {
+                const p = serverPlayers[uid];
+                const last = this.processedShootTimes[uid] || 0;
+                if (p.lastShoot && p.lastShoot > last) {
+                    // New shot detected from client
+                    this.processedShootTimes[uid] = p.lastShoot;
+                    this.addProjectile(p.x + 20, p.y, uid, p.color);
+                }
+            });
+        }
         this.players = { ...serverPlayers };
     }
 
     updateEnemies(serverEnemies) {
         if (!this.isHost) {
             this.enemies = serverEnemies || [];
+        }
+    }
+
+    updateProjectiles(serverProjectiles) {
+        if (!this.isHost) {
+            this.projectiles = serverProjectiles || [];
         }
     }
 
@@ -51,27 +70,25 @@ export class GameEngine {
         if (input.up && p.y > this.height - 100) p.y -= this.playerSpeed; // Minor vertical
         if (input.down && p.y < this.height - 50) p.y += this.playerSpeed;
 
-        if (input.shoot) {
-            // Shooting handled by caller addProjectile
-        }
-
+        // Return Position
         return { x: p.x, y: p.y };
     }
 
-    addProjectile(x, y, ownerId) {
+    // Client calls this to try to shoot (returns timestamp if success)
+    tryShoot(myUid) {
         const now = Date.now();
-        const lastShoot = this.lastShootTimes[ownerId] || 0;
+        const lastShoot = this.lastShootTimes[myUid] || 0;
+        if (now - lastShoot < 400) return null; // Cooldown
 
-        if (now - lastShoot < 400) { // 400ms cooldown (shoot less fast)
-            return false;
-        }
+        this.lastShootTimes[myUid] = now;
+        return now;
+    }
 
-        this.lastShootTimes[ownerId] = now;
+    addProjectile(x, y, ownerId, color) {
         this.projectiles.push({
             id: Date.now() + Math.random(),
-            x, y, ownerId
+            x, y, ownerId, color
         });
-        return true;
     }
 
     loop(timestamp) {
@@ -86,9 +103,13 @@ export class GameEngine {
     }
 
     update(dt) {
-        // Move Projectiles
-        this.projectiles.forEach(p => p.y -= 10);
-        this.projectiles = this.projectiles.filter(p => p.y > 0);
+        // Sim Projectiles (Host & Client for smoothness, but overwritten by server)
+        // Actually, if we sync projectiles, client shouldn't move them twice or we get jitters if we just replace.
+        // For MVP, simple replacement is safer. Host simulates.
+        if (this.isHost) {
+            this.projectiles.forEach(p => p.y -= 15); // Faster bullets
+            this.projectiles = this.projectiles.filter(p => p.y > -50);
+        }
 
         if (this.isHost) {
             // Host Logic: Spawn Enemies
@@ -159,7 +180,11 @@ export class GameEngine {
 
             // Send state
             if (this.onStateUpdate) {
-                this.onStateUpdate({ type: 'UPDATE_ENEMIES', enemies: this.enemies });
+                this.onStateUpdate({
+                    type: 'UPDATE_STATE',
+                    enemies: this.enemies,
+                    projectiles: this.projectiles
+                });
             }
         }
     }
@@ -194,9 +219,12 @@ export class GameEngine {
         });
 
         // Draw Projectiles
-        this.ctx.fillStyle = '#fff';
         this.projectiles.forEach(p => {
+            this.ctx.fillStyle = p.color || '#fff';
+            this.ctx.shadowBlur = 5;
+            this.ctx.shadowColor = p.color || '#fff';
             this.ctx.fillRect(p.x, p.y, 10, 10);
+            this.ctx.shadowBlur = 0;
         });
     }
 }
