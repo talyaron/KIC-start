@@ -172,7 +172,23 @@ export class LobbyScreen {
     }
 
     async setUser(user) {
-        this.currentUser = await getUserProfile(user.uid);
+        try {
+            this.currentUser = await getUserProfile(user.uid);
+        } catch (error) {
+            console.warn('Failed to load Firestore profile, using Guest fallback:', error);
+        }
+
+        // Fallback if profile doesn't exist or failed to load (e.g. Firestore disabled)
+        if (!this.currentUser) {
+            this.currentUser = {
+                uid: user.uid,
+                displayName: user.displayName || 'Guest',
+                userCode: Math.floor(100000 + Math.random() * 900000).toString(),
+                authType: 'guest',
+                currency: 0,
+                info: 'Realtime Database Only Mode'
+            };
+        }
     }
 
     async handleCreateRoom() {

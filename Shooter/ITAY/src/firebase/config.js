@@ -7,7 +7,7 @@ const firebaseConfig = {
   messagingSenderId: "859756799800",
   appId: "1:859756799800:web:1e500da3e8a8cbcd4f83cd",
   measurementId: "G-ZR83Y597DN",
-  databaseURL: "https://project-keco-default-rtdb.europe-west1.firebasedatabase.app/"
+  databaseURL: "https://project-keco-default-rtdb.firebaseio.com/"
 };
 
 // Initialize Firebase
