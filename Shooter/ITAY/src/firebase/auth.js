@@ -20,6 +20,9 @@ export async function signInWithGoogle() {
 
         return result.user;
     } catch (error) {
+        if (error.code === 'auth/popup-closed-by-user') {
+            throw new Error('Sign-in cancelled. Please keep the window open to log in.');
+        }
         console.error('Google sign-in error:', error);
         throw error;
     }

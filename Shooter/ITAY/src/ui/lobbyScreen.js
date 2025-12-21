@@ -149,12 +149,12 @@ export class LobbyScreen {
                     userCode: this.currentUser.userCode,
                     displayName: this.currentUser.displayName,
                     ready: true,
-                    hp: 100,
+                    hp: CONFIG.PLAYER.BASE_HP,
                     score: 0,
-                    x: 0,
-                    y: 0,
+                    x: CONFIG.WORLD_WIDTH / 2,
+                    y: CONFIG.WORLD_HEIGHT / 2,
                     color: '#8338ec',
-                    kills: { red: 0, yellow: 0, blue: 0 },
+                    kills: { small: 0, medium: 0, large: 0 },
                     damageTaken: 0,
                     survivalTime: 0
                 }
@@ -355,6 +355,8 @@ export class LobbyScreen {
     }
 
     updateControls(roomData) {
+        if (!roomData || !roomData.players || !this.currentUser) return;
+
         const readyBtn = document.getElementById('ready-btn');
         const startBtn = document.getElementById('start-btn');
 

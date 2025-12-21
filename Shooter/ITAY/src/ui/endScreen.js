@@ -32,9 +32,9 @@ export class EndScreen {
             <tr>
               <th>Player</th>
               <th>Score</th>
-              <th style="color: #ff006e;">Red</th>
-              <th style="color: #ffbe0b;">Yellow</th>
-              <th style="color: #3a86ff;">Blue</th>
+              <th style="color: #ff006e;">Small</th>
+              <th style="color: #ffbe0b;">Medium</th>
+              <th style="color: #3a86ff;">Large</th>
               <th>Total Kills</th>
               <th>Damage Taken</th>
               <th>Time</th>
@@ -66,7 +66,7 @@ export class EndScreen {
     const tbody = document.getElementById('stats-body');
     Object.entries(stats).forEach(([uid, playerStats]) => {
       const row = document.createElement('tr');
-      const totalKills = (playerStats.kills?.red || 0) + (playerStats.kills?.yellow || 0) + (playerStats.kills?.blue || 0);
+      const totalKills = (playerStats.kills?.small || 0) + (playerStats.kills?.medium || 0) + (playerStats.kills?.large || 0);
       const mins = Math.floor(playerStats.survivalTime / 60);
       const secs = playerStats.survivalTime % 60;
       const timeStr = `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -74,9 +74,9 @@ export class EndScreen {
       row.innerHTML = `
         <td style="font-weight: 700;">${playerStats.displayName}</td>
         <td style="font-size: 1.2rem; font-weight: 700; color: var(--color-accent-primary);">${playerStats.score || 0}</td>
-        <td>${playerStats.kills?.red || 0}</td>
-        <td>${playerStats.kills?.yellow || 0}</td>
-        <td>${playerStats.kills?.blue || 0}</td>
+        <td>${playerStats.kills?.small || 0}</td>
+        <td>${playerStats.kills?.medium || 0}</td>
+        <td>${playerStats.kills?.large || 0}</td>
         <td style="font-weight: 600;">${totalKills}</td>
         <td>${playerStats.damageTaken || 0}</td>
         <td>${timeStr}</td>

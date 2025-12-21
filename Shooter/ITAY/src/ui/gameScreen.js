@@ -95,7 +95,7 @@ export class GameScreen {
         // Update kills
         const killsEl = document.getElementById('player-kills');
         if (killsEl) {
-            const totalKills = player.kills.red + player.kills.yellow + player.kills.blue;
+            const totalKills = (player.kills.small || 0) + (player.kills.medium || 0) + (player.kills.large || 0);
             killsEl.textContent = totalKills;
         }
 
@@ -128,13 +128,13 @@ export class GameScreen {
 
         const survivalTime = Math.floor((Date.now() - this.gameStartTime) / 1000);
         const player = this.currentGame.localPlayer;
-        const totalKills = player.kills.red + player.kills.yellow + player.kills.blue;
+        const totalKills = (player.kills.small || 0) + (player.kills.medium || 0) + (player.kills.large || 0);
 
         await updateGameStats(this.currentGame.currentUser.uid, {
             totalKills: totalKills,
-            redKills: player.kills.red,
-            yellowKills: player.kills.yellow,
-            blueKills: player.kills.blue,
+            smallKills: player.kills.small,
+            mediumKills: player.kills.medium,
+            largeKills: player.kills.large,
             score: player.score,
             survivalTime: survivalTime,
             currencyEarned: Math.floor(player.score / 10)

@@ -17,7 +17,7 @@ export class Player {
         this.hp = CONFIG.PLAYER.BASE_HP;
         this.maxHp = CONFIG.PLAYER.BASE_HP;
         this.score = 0;
-        this.kills = { red: 0, yellow: 0, blue: 0 };
+        this.kills = { small: 0, medium: 0, large: 0 };
         this.damageTaken = 0;
 
         // Movement
@@ -56,6 +56,10 @@ export class Player {
 
     canShoot(currentTime) {
         return currentTime - this.lastShotTime >= this.fireRate;
+    }
+
+    isDead() {
+        return this.hp <= 0;
     }
 
     takeDamage(amount) {

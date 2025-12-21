@@ -55,6 +55,14 @@ export class AuthScreen {
         this.loadingEl.classList.toggle('hidden', !show);
         this.googleBtn.disabled = show;
         this.guestBtn.disabled = show;
+
+        if (show) {
+            this.googleBtn.innerHTML = '<span>Connecting...</span>';
+            this.guestBtn.innerHTML = '<span>Connecting...</span>';
+        } else {
+            this.googleBtn.innerHTML = '<span class="mode-icon">G</span><span>Sign in with Google</span>';
+            this.guestBtn.innerHTML = '<span class="mode-icon">👤</span><span>Play as Guest</span>';
+        }
     }
 
     showError(message) {
