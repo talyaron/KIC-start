@@ -117,7 +117,7 @@ export default function GameCanvas() {
                     const shootTs = engine.tryShoot(user.uid);
                     if (shootTs) {
                         updatePayload[`players/${user.uid}/lastShoot`] = shootTs;
-                        engine.addProjectile(pos.x + 20, pos.y, user.uid, '#00f0ff');
+                        engine.addProjectile(pos.x + 20, pos.y, user.uid, '#0000ff');
                     }
                 }
 

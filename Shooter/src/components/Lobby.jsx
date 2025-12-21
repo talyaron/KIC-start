@@ -33,7 +33,7 @@ export default function Lobby() {
                             hp: 100,
                             x: 200,
                             y: 500,
-                            color: '#00f0ff'
+                            color: '#0000ff'
                         }
                     }
                 });
