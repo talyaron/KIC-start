@@ -1,0 +1,298 @@
+:root {
+    --bg-color: #020205;
+    --neon-blue: #00f3ff;
+    --neon-pink: #ff00ff;
+    --neon-green: #00ff41;
+    --neon-red: #ff3131;
+    --glass-bg: rgba(255, 255, 255, 0.05);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --font-main: 'Orbitron', sans-serif;
+}
+
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: var(--bg-color);
+    font-family: var(--font-main);
+    color: white;
+}
+
+/* Starfield / Grid Background */
+#starfield {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image:
+        radial-gradient(circle at 50% 50%, rgba(20, 20, 40, 0.8), #000),
+        linear-gradient(rgba(0, 243, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 243, 255, 0.03) 1px, transparent 1px);
+    background-size: 100% 100%, 40px 40px, 40px 40px;
+    z-index: -1;
+}
+
+/* UI Layer */
+#ui-layer {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.screen {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(5px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s;
+}
+
+.screen.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Panels */
+.glass-panel {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    padding: 2rem 3rem;
+    border-radius: 12px;
+    box-shadow: 0 0 30px rgba(0, 243, 255, 0.1);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    min-width: 300px;
+}
+
+.glass-panel.large {
+    width: 80%;
+    max-width: 600px;
+}
+
+/* Typography */
+h1,
+h2 {
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+}
+
+.logo {
+    font-size: 3.5rem;
+    margin-bottom: 2rem;
+}
+
+.neon {
+    color: var(--neon-blue);
+    text-shadow: 0 0 10px var(--neon-blue);
+}
+
+.code {
+    color: var(--neon-green);
+    font-family: monospace;
+}
+
+/* Buttons */
+.cyber-btn {
+    background: transparent;
+    border: 2px solid var(--neon-blue);
+    color: var(--neon-blue);
+    padding: 15px 30px;
+    font-family: var(--font-main);
+    font-weight: bold;
+    font-size: 1.1rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: 0.2s;
+    box-shadow: 0 0 5px var(--neon-blue);
+}
+
+.cyber-btn:hover {
+    background: var(--neon-blue);
+    color: black;
+    box-shadow: 0 0 20px var(--neon-blue);
+}
+
+.cyber-btn.big {
+    font-size: 1.4rem;
+    padding: 20px 40px;
+    width: 100%;
+}
+
+.cyber-btn.hollow {
+    border-color: white;
+    color: white;
+    box-shadow: none;
+}
+
+.cyber-btn.hollow:hover {
+    background: white;
+    box-shadow: 0 0 10px white;
+}
+
+.cyber-btn.warning {
+    border-color: var(--neon-red);
+    color: var(--neon-red);
+    box-shadow: 0 0 5px var(--neon-red);
+}
+
+.cyber-btn.warning:hover {
+    background: var(--neon-red);
+    color: black;
+    box-shadow: 0 0 20px var(--neon-red);
+}
+
+.cyber-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    filter: grayscale(1);
+    pointer-events: none;
+}
+
+/* Inputs */
+input[type="text"] {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--neon-blue);
+    color: white;
+    padding: 15px;
+    font-family: var(--font-main);
+    font-size: 1.2rem;
+    text-align: center;
+    width: 60%;
+    margin-right: 10px;
+}
+
+input:focus {
+    outline: none;
+    box-shadow: 0 0 10px var(--neon-blue);
+}
+
+/* Bottom Nav */
+#bottom-nav {
+    position: absolute;
+    bottom: 30px;
+    display: flex;
+    gap: 20px;
+    background: var(--glass-bg);
+    padding: 15px 30px;
+    border-radius: 50px;
+    border: 1px solid var(--glass-border);
+}
+
+.nav-btn {
+    color: #888;
+    cursor: pointer;
+    font-weight: bold;
+    transition: 0.3s;
+}
+
+.nav-btn.active {
+    color: var(--neon-blue);
+    text-shadow: 0 0 10px var(--neon-blue);
+    transform: scale(1.1);
+}
+
+/* User Info Bar */
+.header-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 20px 40px;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: space-between;
+    font-size: 1.2rem;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent);
+}
+
+/* Player List */
+#player-list {
+    width: 100%;
+    min-height: 100px;
+    border: 1px dashed rgba(255, 255, 255, 0.2);
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+.player-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* HUD */
+#game-hud {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.top-hud {
+    position: absolute;
+    top: 20px;
+    width: 100%;
+    text-align: center;
+}
+
+.score-container {
+    font-size: 2rem;
+    color: var(--neon-blue);
+    text-shadow: 0 0 10px var(--neon-blue);
+}
+
+.bottom-hud {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.hp-bar-bg {
+    width: 300px;
+    height: 25px;
+    background: #330000;
+    border: 2px solid white;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.hp-label {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+#hp-bar-fill {
+    width: 100%;
+    height: 100%;
+    background: var(--neon-green);
+    box-shadow: 0 0 10px var(--neon-green);
+    transition: width 0.2s;
+}
+
+/* Game Canvas */
+#game-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+}
