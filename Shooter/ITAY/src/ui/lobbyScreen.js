@@ -358,6 +358,9 @@ export class LobbyScreen {
         const readyBtn = document.getElementById('ready-btn');
         const startBtn = document.getElementById('start-btn');
 
+        // Safety check for undefined players
+        if (!roomData.players) return;
+
         const myPlayer = roomData.players[this.currentUser.uid];
         if (myPlayer) {
             this.isReady = myPlayer.ready;

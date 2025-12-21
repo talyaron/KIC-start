@@ -44,7 +44,7 @@ export class GameScreen {
                         <div class="hud-value main" id="player-score">0</div>
                     </div>
                     <div class="hud-timer-card">
-                        <div class="hud-label">SURVIVAl</div>
+                        <div class="hud-label">SURVIVAL</div>
                         <div class="hud-value" id="survival-time">0:00</div>
                     </div>
                     <div class="hud-kills-card">
@@ -61,6 +61,16 @@ export class GameScreen {
                         </div>
                         <div class="hp-bar-outer">
                             <div class="hp-bar-inner" id="hp-fill"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="exp-container" style="margin-top: 0.5rem;">
+                        <div class="exp-header">
+                            <span class="exp-label">EXPERIENCE</span>
+                            <span class="exp-count" id="player-exp">0</span>
+                        </div>
+                        <div class="exp-bar-outer">
+                            <div class="exp-bar-inner" id="exp-fill"></div>
                         </div>
                     </div>
                 </div>
@@ -90,6 +100,17 @@ export class GameScreen {
             if (percent < 30) hpFillEl.style.background = 'var(--color-error)';
             else if (percent < 60) hpFillEl.style.background = 'var(--color-warning)';
             else hpFillEl.style.background = 'var(--color-success)';
+        }
+
+        // Update EXP
+        const expCountEl = document.getElementById('player-exp');
+        const expFillEl = document.getElementById('exp-fill');
+        if (expCountEl && expFillEl) {
+            expCountEl.textContent = player.exp;
+
+            // Visual EXP bar (filled based on exp, wraps at 1000)
+            const expPercent = (player.exp % 1000) / 1000 * 100;
+            expFillEl.style.width = `${expPercent}%`;
         }
 
         // Update kills

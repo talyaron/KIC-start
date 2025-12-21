@@ -22,29 +22,44 @@ export const CONFIG = {
         RED: {
             type: 'RED',
             color: '#ff006e',
+            hp: 20,           // Low HP - 1 shot to kill
             damage: 10,
             score: 5,
+            exp: 10,          // Fast EXP gain
             size: 30,
             speed: 2,
             spawnWeight: 70, // High frequency
+            shootInterval: 2000, // Shoots every 2 seconds
+            projectileSpeed: 6,
+            accuracy: 0.3,   // Low accuracy (30%)
         },
         YELLOW: {
             type: 'YELLOW',
             color: '#ffbe0b',
+            hp: 60,           // Medium HP - 3 shots to kill
             damage: 15,
             score: 10,
+            exp: 25,          // Medium EXP
             size: 40,
             speed: 1.5,
             spawnWeight: 25, // Medium frequency
+            shootInterval: 3000, // Burst of 3
+            projectileSpeed: 4,
+            accuracy: 0.6,   // Medium accuracy
         },
         BLUE: {
             type: 'BLUE',
             color: '#3a86ff',
+            hp: 100,          // High HP - 5 shots to kill
             damage: 30,
             score: 20,
+            exp: 60,          // High EXP reward
             size: 50,
             speed: 1,
             spawnWeight: 5, // Low frequency (rare)
+            shootInterval: 4000, // Spread shot
+            projectileSpeed: 3,
+            accuracy: 0.9,   // High accuracy
         },
     },
 

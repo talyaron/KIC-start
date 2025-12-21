@@ -16,6 +16,7 @@ export class Player {
         this.hp = CONFIG.PLAYER.BASE_HP;
         this.maxHp = CONFIG.PLAYER.BASE_HP;
         this.score = 0;
+        this.exp = 0; // Experience points
         this.kills = { red: 0, yellow: 0, blue: 0 };
         this.damageTaken = 0;
 
@@ -147,10 +148,12 @@ export class Player {
      * Add kill
      * @param {string} enemyType - Enemy type ('red', 'yellow', 'blue')
      * @param {number} score - Score to add
+     * @param {number} exp - EXP to add
      */
-    addKill(enemyType, score) {
+    addKill(enemyType, score, exp = 0) {
         this.kills[enemyType.toLowerCase()]++;
         this.score += score;
+        this.exp += exp;
     }
 
     /**

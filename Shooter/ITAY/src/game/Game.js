@@ -3,6 +3,7 @@
 import { Player } from './Player.js';
 import { Bullet } from './Bullet.js';
 import { EnemySpawner } from './spawner.js';
+import { EnemyProjectile } from './EnemyProjectile.js';
 import { CONFIG } from '../config.js';
 import { audioManager } from '../audio/audioManager.js';
 import { throttle } from '../utils/helpers.js';
@@ -25,6 +26,7 @@ export class Game {
         this.players = new Map();
         this.enemies = [];
         this.bullets = [];
+        this.enemyProjectiles = []; // Enemy bullets
         this.running = false;
         this.gameStartTime = Date.now();
 
@@ -226,26 +228,40 @@ export class Game {
             this.spawner.spawn(this.enemies, currentTime);
         }
 
-        // Update enemies
+        // Update enemies and handle shooting
         for (const enemy of this.enemies) {
             enemy.update();
+
+            // Enemy shooting (host only for consistency)
+            if (this.isHost && enemy.canShoot(currentTime) && this.localPlayer) {
+                this.handleEnemyShooting(enemy, currentTime);
+                enemy.recordShot(currentTime);
+            }
 
             // Check if enemy hit bottom
             if (enemy.isOffScreen(this.canvas.height)) {
                 enemy.destroy();
-                // Penalty: team loses points (host handles this)
                 if (this.isHost) {
                     this.handleEnemyReachedBottom(enemy);
                 }
             }
         }
 
-        // Update bullets
+        // Update player bullets
         for (const bullet of this.bullets) {
             bullet.update();
 
             if (bullet.isOffScreen()) {
                 bullet.destroy();
+            }
+        }
+
+        // Update enemy projectiles
+        for (const projectile of this.enemyProjectiles) {
+            projectile.update();
+
+            if (projectile.isOffScreen(this.canvas.width, this.canvas.height)) {
+                projectile.destroy();
             }
         }
 
@@ -255,6 +271,7 @@ export class Game {
         // Clean up destroyed entities
         this.enemies = this.enemies.filter(e => e.active);
         this.bullets = this.bullets.filter(b => b.active);
+        this.enemyProjectiles = this.enemyProjectiles.filter(p => p.active);
     }
 
     /**
@@ -274,6 +291,113 @@ export class Game {
     }
 
     /**
+     * Handle enemy shooting with different patterns
+     * @param {Enemy} enemy - Enemy that's shooting
+     * @param {number} currentTime - Current timestamp
+     */
+    handleEnemyShooting(enemy, currentTime) {
+        if (!this.localPlayer) return;
+
+        const enemyCenterX = enemy.x + enemy.width / 2;
+        const enemyCenterY = enemy.y + enemy.height / 2;
+        const playerCenterX = this.localPlayer.x + this.localPlayer.width / 2;
+        const playerCenterY = this.localPlayer.y + this.localPlayer.height / 2;
+
+        // Calculate direction to player
+        const dx = playerCenterX - enemyCenterX;
+        const dy = playerCenterY - enemyCenterY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // Normalize direction
+        const dirX = dx / distance;
+        const dirY = dy / distance;
+
+        // Apply accuracy (spread/miss chance)
+        const spread = (1 - enemy.accuracy) * 100; // Higher accuracy = less spread
+
+        switch (enemy.type) {
+            case 'RED':
+                // Single straight shot with low accuracy
+                this.createEnemyProjectile(
+                    enemyCenterX,
+                    enemyCenterY,
+                    dirX,
+                    dirY,
+                    enemy.projectileSpeed,
+                    spread,
+                    enemy.damage,
+                    enemy.color
+                );
+                break;
+
+            case 'YELLOW':
+                // Burst of 3 shots with medium accuracy
+                for (let i = 0; i < 3; i++) {
+                    setTimeout(() => {
+                        if (enemy.active) {
+                            this.createEnemyProjectile(
+                                enemyCenterX,
+                                enemyCenterY,
+                                dirX,
+                                dirY,
+                                enemy.projectileSpeed,
+                                spread,
+                                enemy.damage,
+                                enemy.color
+                            );
+                        }
+                    }, i * 150); // 150ms between shots
+                }
+                break;
+
+            case 'BLUE':
+                // Spread shot (3 bullets in a fan)
+                const angles = [-0.3, 0, 0.3]; // Spread angles
+                angles.forEach(angleOffset => {
+                    const cos = Math.cos(angleOffset);
+                    const sin = Math.sin(angleOffset);
+                    const rotatedX = dirX * cos - dirY * sin;
+                    const rotatedY = dirX * sin + dirY * cos;
+
+                    this.createEnemyProjectile(
+                        enemyCenterX,
+                        enemyCenterY,
+                        rotatedX,
+                        rotatedY,
+                        enemy.projectileSpeed,
+                        spread * 0.5, // Less spread for blue
+                        enemy.damage,
+                        enemy.color
+                    );
+                });
+                break;
+        }
+    }
+
+    /**
+     * Create an enemy projectile with spread
+     * @param {number} x - Starting x
+     * @param {number} y - Starting y
+     * @param {number} dirX - Direction X (normalized)
+     * @param {number} dirY - Direction Y (normalized)
+     * @param {number} speed - Projectile speed
+     * @param {number} spread - Spread amount in pixels
+     * @param {number} damage - Damage amount
+     * @param {string} color - Projectile color
+     */
+    createEnemyProjectile(x, y, dirX, dirY, speed, spread, damage, color) {
+        // Add random spread
+        const spreadX = (Math.random() - 0.5) * spread;
+        const spreadY = (Math.random() - 0.5) * spread;
+
+        const velocityX = dirX * speed + spreadX * 0.01;
+        const velocityY = dirY * speed + spreadY * 0.01;
+
+        const projectile = new EnemyProjectile(x, y, velocityX, velocityY, damage, color);
+        this.enemyProjectiles.push(projectile);
+    }
+
+    /**
      * Check all collisions
      */
     checkCollisions() {
@@ -287,14 +411,19 @@ export class Game {
                 if (bullet.collidesWith(enemy.x, enemy.y, enemy.width, enemy.height)) {
                     // Hit!
                     bullet.destroy();
-                    enemy.destroy();
+
+                    // Apply damage to enemy
+                    const enemyDied = enemy.takeDamage(bullet.damage);
+
                     audioManager.play('enemyHit');
 
-                    // Award score to bullet owner
-                    const owner = this.players.get(bullet.ownerId);
-                    if (owner) {
-                        owner.addKill(enemy.type, enemy.score);
-                        // score sync is now handled by throttled syncStats()
+                    // Only award score/exp if enemy died
+                    if (enemyDied) {
+                        const owner = this.players.get(bullet.ownerId);
+                        if (owner) {
+                            owner.addKill(enemy.type, enemy.score, enemy.exp);
+                            // score/exp sync is now handled by throttled syncStats()
+                        }
                     }
 
                     break;
@@ -302,17 +431,20 @@ export class Game {
             }
         }
 
-        // Enemy-Player collisions
-        for (const enemy of this.enemies) {
-            if (!enemy.active) continue;
+        // Enemy-Player collisions (removed - only projectiles damage player now)
+        // Enemies can pass through the player without harm
+
+        // Enemy Projectile-Player collisions
+        for (const projectile of this.enemyProjectiles) {
+            if (!projectile.active) continue;
 
             for (const player of this.players.values()) {
-                if (enemy.collidesWith(player.x, player.y, player.width, player.height)) {
-                    enemy.destroy();
-                    player.takeDamage(enemy.damage);
+                if (projectile.collidesWith(player.x, player.y, player.width, player.height)) {
+                    projectile.destroy();
+                    player.takeDamage(projectile.damage);
                     audioManager.play('playerHit');
 
-                    // HP sync is now handled by throttled syncStats()
+                    // HP sync is handled by throttled syncStats()
                     break;
                 }
             }
@@ -320,14 +452,12 @@ export class Game {
     }
 
     /**
-     * Handle enemy reaching bottom (host only)
+     * Handle enemy reaching bottom (host only  
      * @param {Enemy} enemy - Enemy that reached bottom
      */
     handleEnemyReachedBottom(enemy) {
-        if (this.roomCode !== 'local') {
-            updateTeamScore(this.roomCode, CONFIG.SCORING.ENEMY_BOTTOM_PENALTY);
-        }
-        console.log('Enemy reached bottom, team penalty:', CONFIG.SCORING.ENEMY_BOTTOM_PENALTY);
+        // Enemies that reach bottom just disappear (no damage to players)
+        console.log('Enemy reached bottom - disappeared safely');
     }
 
     /**
@@ -342,7 +472,7 @@ export class Game {
     }
 
     /**
-     * Batch sync for stats (score, kills, hp, damageTaken)
+     * Batch sync for stats (score, kills, hp, damageTaken, exp)
      */
     syncStatsToServer() {
         if (!this.localPlayer || this.roomCode === 'local') return;
@@ -351,6 +481,7 @@ export class Game {
         // to minimize individual update calls
         const updates = {
             score: this.localPlayer.score,
+            exp: this.localPlayer.exp,
             hp: Math.max(0, Math.ceil(this.localPlayer.hp)),
             kills: { ...this.localPlayer.kills },
             damageTaken: this.localPlayer.damageTaken
@@ -384,6 +515,11 @@ export class Game {
         // Render bullets
         for (const bullet of this.bullets) {
             bullet.render(this.ctx);
+        }
+
+        // Render enemy projectiles
+        for (const projectile of this.enemyProjectiles) {
+            projectile.render(this.ctx);
         }
 
         // Render players
