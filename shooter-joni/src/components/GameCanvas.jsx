@@ -15,6 +15,7 @@ export default function GameCanvas() {
     const [votes, setVotes] = useState({});
     const [playerCount, setPlayerCount] = useState(1);
     const [hasVoted, setHasVoted] = useState(false);
+    const [players, setPlayers] = useState({});
 
     // Input State
     const keys = useRef({
@@ -68,6 +69,7 @@ export default function GameCanvas() {
             }
 
             if (data.players) {
+                setPlayers(data.players);
                 engine.updatePlayers(data.players);
 
                 // Check for Death (Client Side)
