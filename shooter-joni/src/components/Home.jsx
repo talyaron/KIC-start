@@ -47,15 +47,40 @@ export default function Home() {
             {/* Main Content Area */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '20px' }}>
 
-                {/* Character Stage (Placeholder) */}
+                {/* Game Title Area */}
                 <div style={{
-                    height: '250px', width: '250px',
-                    background: 'radial-gradient(circle, rgba(0,240,255,0.1) 0%, transparent 70%)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    borderBottom: '4px solid rgba(255,255,255,0.1)',
-                    marginBottom: '20px'
+                    height: '250px', width: '100%',
+                    background: 'radial-gradient(circle, rgba(0,240,255,0.05) 0%, transparent 70%)',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    marginBottom: '40px',
+                    position: 'relative'
                 }}>
-                    <div style={{ color: 'var(--accent-primary)', fontSize: '5rem', opacity: 0.8 }}>⚡</div>
+                    <h1 className="neon-text" style={{
+                        fontSize: '5rem',
+                        margin: 0,
+                        letterSpacing: '5px',
+                        color: 'white',
+                        textTransform: 'uppercase',
+                        fontWeight: '900'
+                    }}>
+                        ALIEN
+                    </h1>
+                    <h1 className="neon-text" style={{
+                        fontSize: '3rem',
+                        margin: '-20px 0 0 0',
+                        letterSpacing: '15px',
+                        color: 'var(--accent-primary)',
+                        textTransform: 'uppercase',
+                        fontWeight: '100',
+                        opacity: 0.8
+                    }}>
+                        HUNTERS
+                    </h1>
+                    <div style={{
+                        position: 'absolute', bottom: 0, width: '300px', height: '2px',
+                        background: 'linear-gradient(90deg, transparent, var(--accent-primary), transparent)',
+                        opacity: 0.5
+                    }}></div>
                 </div>
 
                 {/* Action Buttons */}

@@ -12,6 +12,9 @@ export default function GameCanvas() {
     const engineRef = useRef(null);
     const navigate = useNavigate();
     const [gameOver, setGameOver] = useState(false);
+    const [votes, setVotes] = useState({});
+    const [playerCount, setPlayerCount] = useState(1);
+    const [hasVoted, setHasVoted] = useState(false);
 
     // Input State
     const keys = useRef({
@@ -49,6 +52,8 @@ export default function GameCanvas() {
             },
             () => {
                 setGameOver(true);
+                engine.pause();
+                // We don't stop the loop, just pause updates
             }
         );
         engineRef.current = engine;
@@ -75,6 +80,56 @@ export default function GameCanvas() {
             if (!engine.isHost) {
                 if (data.enemies) engine.updateEnemies(data.enemies);
                 if (data.projectiles) engine.updateProjectiles(data.projectiles);
+            }
+
+            // Sync votes and player count
+            if (data.votes) {
+                setVotes(data.votes);
+            } else {
+                setVotes({});
+            }
+
+            if (data.players) {
+                const count = Object.keys(data.players).length;
+                setPlayerCount(count);
+
+                // Auto-restart logic for Host
+                if (engine.isHost && data.votes) {
+                    const voteUids = Object.keys(data.votes);
+                    if (voteUids.length >= count && count > 0) {
+                        // Reset Game
+                        console.log("All players voted! Restarting...");
+                        const resetPlayers = {};
+                        Object.keys(data.players).forEach(pUid => {
+                            resetPlayers[pUid] = {
+                                ...data.players[pUid],
+                                hp: 100,
+                                x: 200 + Math.random() * 200, // Randomish start
+                                y: window.innerHeight - 100,
+                                score: 0
+                            };
+                        });
+
+                        update(roomRef, {
+                            status: 'playing',
+                            enemies: null,
+                            projectiles: null,
+                            votes: null, // Clear votes
+                            players: resetPlayers
+                        }).then(() => {
+                            setGameOver(false);
+                            setHasVoted(false);
+                            engine.start(); // Resume if it was stopped, though we used pause()
+                        });
+                    }
+                }
+            }
+
+            // If game status changes back to playing (restart)
+            if (data.status === 'playing' && gameOver) {
+                setGameOver(false);
+                setHasVoted(false);
+                engine.start();
             }
         });
 
@@ -117,7 +172,8 @@ export default function GameCanvas() {
                     const shootTs = engine.tryShoot(user.uid);
                     if (shootTs) {
                         updatePayload[`players/${user.uid}/lastShoot`] = shootTs;
-                        engine.addProjectile(pos.x + 20, pos.y, user.uid, '#0000ff');
+                        const myPlayer = engineRef.current.players[user.uid];
+                        engine.addProjectile(pos.x + 25, pos.y, user.uid, myPlayer?.color);
                     }
                 }
 
@@ -139,12 +195,33 @@ export default function GameCanvas() {
         <div className="full-screen" style={{ background: '#000' }}>
             <canvas ref={canvasRef} style={{ display: 'block' }} />
 
-            {/* HUD / Leaderboard */}
-            <div style={{ position: 'absolute', top: 10, right: 10, color: 'white', background: 'rgba(0,0,0,0.5)', padding: '10px', borderRadius: '5px' }}>
-                <h3>Scores</h3>
-                {engineRef.current && Object.values(engineRef.current.players).sort((a, b) => (b.score || 0) - (a.score || 0)).map((p, i) => (
-                    <div key={i} style={{ color: p.color || 'white' }}>
-                        {p.displayName || 'Guest'}: {p.score || 0}
+
+            {/* Top HUD: Current Player Score */}
+            <div style={{ position: 'absolute', top: 20, left: 20, pointerEvents: 'none' }}>
+                <h1 className="neon-text" style={{ fontSize: '2.5rem', margin: 0 }}>
+                    {engineRef.current?.players[user.uid]?.score || 0}
+                </h1>
+                <div style={{ color: 'var(--accent-primary)', fontSize: '0.8rem', letterSpacing: '2px' }}>SCORE</div>
+            </div>
+
+            {/* Leaderboard HUD */}
+            <div style={{
+                position: 'absolute', top: 20, right: 20,
+                color: 'white', background: 'rgba(0,0,0,0.3)',
+                padding: '15px', borderRadius: '10px',
+                border: '1px solid rgba(255,255,255,0.1)',
+                backdropFilter: 'blur(5px)',
+                minWidth: '150px'
+            }}>
+                <h4 style={{ margin: '0 0 10px 0', borderBottom: '1px solid #333', paddingBottom: '5px', fontSize: '0.8rem', color: '#aaa' }}>PILOTS</h4>
+                {Object.values(players).sort((a, b) => (b.score || 0) - (a.score || 0)).map((p, i) => (
+                    <div key={i} style={{
+                        display: 'flex', justifyContent: 'space-between', gap: '20px',
+                        color: p.uid === user.uid ? 'var(--accent-primary)' : 'white',
+                        fontSize: '0.9rem', marginBottom: '4px'
+                    }}>
+                        <span>{p.displayName || 'Guest'}</span>
+                        <span style={{ fontWeight: 'bold' }}>{p.score || 0}</span>
                     </div>
                 ))}
             </div>
@@ -152,11 +229,38 @@ export default function GameCanvas() {
             {gameOver && (
                 <div style={{
                     position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-                    background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center',
+                    background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)',
+                    display: 'flex', justifyContent: 'center', alignItems: 'center',
                     flexDirection: 'column'
                 }}>
-                    <h1 className="neon-text" style={{ fontSize: '4rem', color: 'var(--accent-danger)' }}>GAME OVER</h1>
-                    <button onClick={() => navigate('/')}>Return Home</button>
+                    <h1 className="neon-text" style={{ fontSize: '5rem', color: 'var(--accent-danger)', marginBottom: '0' }}>GAME OVER</h1>
+                    <div style={{ color: 'white', fontSize: '1.2rem', marginBottom: '40px', opacity: 0.8 }}>The alien invasion continues...</div>
+
+                    <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                        {!hasVoted ? (
+                            <button
+                                style={{ padding: '20px 40px', fontSize: '1.2rem', minWidth: '200px' }}
+                                onClick={() => {
+                                    setHasVoted(true);
+                                    update(ref(db, `rooms/${roomId}/votes`), {
+                                        [user.uid]: true
+                                    });
+                                }}
+                            >
+                                Play Again
+                            </button>
+                        ) : (
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ color: 'var(--accent-success)', fontSize: '1.5rem', fontWeight: 'bold' }}>Waiting...</div>
+                                <div style={{ color: '#888' }}>{Object.keys(votes).length} / {playerCount} Ready</div>
+                            </div>
+                        )}
+                        <button className="secondary" style={{ padding: '20px 40px', fontSize: '1.2rem' }} onClick={() => {
+                            update(ref(db, `rooms/${roomId}`), { status: 'closed' }).then(() => {
+                                navigate('/');
+                            });
+                        }}>Exit to Base</button>
+                    </div>
                 </div>
             )}
         </div>
