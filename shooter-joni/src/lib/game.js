@@ -545,12 +545,13 @@ export class GameEngine {
                 });
 
                 // Spawn boost occasionally
-                if (Math.random() > 0.9) {
+                if (Math.random() > 0.85) { // Slightly more frequent
                     const bRoll = Math.random();
                     let bType = 'speed';
-                    if (bRoll > 0.75) bType = 'freeze';
-                    else if (bRoll > 0.50) bType = 'shield';
-                    else if (bRoll > 0.25) bType = 'triple';
+                    if (bRoll > 0.80) bType = 'heal';
+                    else if (bRoll > 0.60) bType = 'freeze';
+                    else if (bRoll > 0.40) bType = 'shield';
+                    else if (bRoll > 0.20) bType = 'triple';
 
                     this.boosts.push({
                         id: 'boost_' + Date.now(),
@@ -642,6 +643,11 @@ export class GameEngine {
                     }
                 });
 
+                // Shared Death Check (Host Only)
+                if (pl.hp <= 0 && this.onGameOver) {
+                    this.onGameOver(); // Trigger global game over
+                }
+
                 // Boost Pickup
                 this.boosts.forEach((b, bIdx) => {
                     if (
@@ -652,17 +658,25 @@ export class GameEngine {
                     ) {
                         this.playSound('boost');
                         this.boosts.splice(bIdx, 1);
-                        this.playerBoosts[uid] = {
-                            type: b.type,
-                            end: Date.now() + 8000 // 8 seconds
-                        };
 
-                        // New: Freeze Logic
-                        if (b.type === 'freeze') {
-                            this.enemyFreezeEnd = Date.now() + 4000; // 4 seconds
+                        if (b.type === 'heal') {
+                            const newHp = Math.min(100, (pl.hp || 100) + 30);
+                            if (this.onStateUpdate) {
+                                this.onStateUpdate({ type: 'DAMAGE', uid, newHp });
+                            }
+                            this.addScorePopup(pl.x, pl.y, '+30 HP', '#00ff9d');
+                        } else {
+                            this.playerBoosts[uid] = {
+                                type: b.type,
+                                end: Date.now() + 8000 // 8 seconds
+                            };
+
+                            // New: Freeze Logic
+                            if (b.type === 'freeze') {
+                                this.enemyFreezeEnd = Date.now() + 4000; // 4 seconds
+                            }
+                            this.addScorePopup(pl.x, pl.y, b.type.toUpperCase() + ' BOOST!', '#00ffff');
                         }
-
-                        this.addScorePopup(pl.x, pl.y, b.type.toUpperCase() + ' BOOST!', '#00ffff');
                     }
                 });
             });
@@ -774,10 +788,11 @@ export class GameEngine {
 
         // Draw Boosts
         this.boosts.forEach(b => {
-            // Speed: Gold, Shield: Blue, Triple: Pink, Freeze: Cyan/Ice
+            // Speed: Gold, Shield: Blue, Triple: Pink, Freeze: Cyan/Ice, Heal: Green
             this.ctx.fillStyle = b.type === 'speed' ? '#ffcc00' :
                 b.type === 'shield' ? '#0066ff' :
-                    b.type === 'freeze' ? '#99ffff' : '#ff00ff';
+                    b.type === 'freeze' ? '#99ffff' :
+                        b.type === 'heal' ? '#00ff9d' : '#ff00ff';
 
             // Draw a glowing hex (no shadowBlur)
             this.ctx.beginPath();
@@ -804,7 +819,8 @@ export class GameEngine {
             this.ctx.textAlign = 'center';
             let label = b.type === 'speed' ? 'S' :
                 b.type === 'shield' ? 'H' :
-                    b.type === 'freeze' ? 'F' : 'T';
+                    b.type === 'freeze' ? 'F' :
+                        b.type === 'heal' ? '+' : 'T';
             this.ctx.fillText(label, b.x + 20, b.y + 26);
         });
 

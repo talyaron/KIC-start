@@ -73,8 +73,12 @@ export default function GameCanvas() {
                 }
             },
             () => {
+                // Host detected a death or game end condition
                 setGameOver(true);
                 engine.pause();
+                if (engine.isHost) {
+                    update(roomRef, { status: 'gameOver' });
+                }
             }
         );
         engineRef.current = engine;
@@ -92,11 +96,12 @@ export default function GameCanvas() {
             if (data.players) {
                 setPlayers(data.players);
                 engine.updatePlayers(data.players);
+            }
 
-                const myPlayer = data.players[user.uid];
-                if (myPlayer && myPlayer.hp <= 0) {
-                    setGameOver(true);
-                }
+            // Sync Game Over status for everyone
+            if (data.status === 'gameOver' && !gameOver) {
+                setGameOver(true);
+                engine.pause();
             }
 
             if (!engine.isHost) {
