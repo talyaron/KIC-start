@@ -42,7 +42,9 @@ export default function Lobby() {
                             hp: 100,
                             x: 200,
                             y: 500,
-                            color: PLAYER_COLORS[0]
+                            color: PLAYER_COLORS[0],
+                            score: 0,
+                            kills: { 1: 0, 2: 0, 3: 0 }
                         }
                     }
                 });
@@ -94,7 +96,9 @@ export default function Lobby() {
                         x: 200 + Math.random() * 200,
                         y: 500,
                         ready: true,
-                        color: availableColor
+                        color: availableColor,
+                        score: 0,
+                        kills: { 1: 0, 2: 0, 3: 0 }
                     }).catch(e => console.error("Error joining:", e));
                 });
             }

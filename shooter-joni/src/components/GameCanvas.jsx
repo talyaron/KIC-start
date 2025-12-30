@@ -22,6 +22,20 @@ export default function GameCanvas() {
         left: false, right: false, up: false, down: false, shoot: false
     });
 
+    const handleQuit = async () => {
+        if (!user || !roomId) return;
+        const playerRef = ref(db, `rooms/${roomId}/players/${user.uid}`);
+        try {
+            // Stop engine and remove self from database
+            if (engineRef.current) engineRef.current.stop();
+            await update(ref(db, `rooms/${roomId}/players`), { [user.uid]: null });
+            navigate('/');
+        } catch (err) {
+            console.error("Error quitting:", err);
+            navigate('/');
+        }
+    };
+
     useEffect(() => {
         if (!user || !roomId) return;
 
@@ -65,6 +79,7 @@ export default function GameCanvas() {
             }
         );
         engineRef.current = engine;
+        engine.myUid = user.uid;
 
         // Subscribe to Room Data
         const unsub = onValue(roomRef, (snapshot) => {
@@ -110,17 +125,16 @@ export default function GameCanvas() {
                         // Reset Game
                         console.log("All players voted! Restarting...");
                         const resetPlayers = {};
-                        Object.keys(data.players).forEach(pUid => {
+                        Object.keys(data.players || {}).forEach(pUid => {
                             resetPlayers[pUid] = {
                                 ...data.players[pUid],
                                 hp: 100,
-                                x: 200 + Math.random() * 200, // Randomish start
+                                x: 200 + Math.random() * 200,
                                 y: window.innerHeight - 100,
-                                score: 0
+                                score: 0,
+                                kills: { 1: 0, 2: 0, 3: 0 }
                             };
                         });
-
-                        setStats({ 1: 0, 2: 0, 3: 0 });
 
                         update(roomRef, {
                             status: 'playing',
@@ -131,7 +145,7 @@ export default function GameCanvas() {
                         }).then(() => {
                             setGameOver(false);
                             setHasVoted(false);
-                            engine.start(); // Resume if it was stopped, though we used pause()
+                            engine.start();
                         });
                     }
                 }
@@ -165,39 +179,49 @@ export default function GameCanvas() {
         window.addEventListener('keydown', handleDown);
         window.addEventListener('keyup', handleUp);
 
-        // Sync Loop (RTDB fast enough for 30Hz? Let's stick to 20Hz for safety but smoother)
-        const inputInterval = setInterval(() => {
-            const pos = engine.handleInput(keys.current, user.uid);
+        // High-frequency local update loop (60Hz+)
+        let frameId;
+        let lastSmoothTime = performance.now();
+        const smoothInput = (timestamp) => {
+            const now = performance.now();
+            const dt = now - lastSmoothTime;
+            lastSmoothTime = now;
 
-            if (pos) {
-                // Update Payload
-                // RTDB uses paths with slashes, not dots for nested updates usually, 
-                // BUT 'update' accepts paths like "a/b/c": val
+            if (engine.running && !engine.paused) {
+                // Pass dt to ensure frame-rate independent smooth movement
+                engine.handleInput(keys.current, user.uid, dt);
+            }
+            frameId = requestAnimationFrame(smoothInput);
+        };
+        frameId = requestAnimationFrame(smoothInput);
+
+        // Lower-frequency sync loop to server (20Hz)
+        const inputInterval = setInterval(() => {
+            const p = engine.players[user.uid];
+            if (p) {
                 const updatePayload = {
-                    [`players/${user.uid}/x`]: pos.x,
-                    [`players/${user.uid}/y`]: pos.y
+                    [`players/${user.uid}/x`]: p.x,
+                    [`players/${user.uid}/y`]: p.y
                 };
 
-                // Check Shoot
                 if (keys.current.shoot) {
                     const shootTs = engine.tryShoot(user.uid);
                     if (shootTs) {
                         updatePayload[`players/${user.uid}/lastShoot`] = shootTs;
-                        const myPlayer = engineRef.current.players[user.uid];
-                        engine.addProjectile(pos.x + 25, pos.y, user.uid, myPlayer?.color);
+                        engine.addProjectile(p.x + 25, p.y, user.uid, p.color);
                     }
                 }
 
-                // Write to RTDB
                 update(roomRef, updatePayload).catch(() => { });
             }
-        }, 50); // 50ms = 20Hz (Faster than Firestore!)
+        }, 50);
 
         return () => {
             engine.stop();
             unsub();
             window.removeEventListener('keydown', handleDown);
             window.removeEventListener('keyup', handleUp);
+            cancelAnimationFrame(frameId);
             clearInterval(inputInterval);
         };
     }, [roomId, user]);
@@ -213,6 +237,25 @@ export default function GameCanvas() {
                     {engineRef.current?.players[user.uid]?.score || 0}
                 </h1>
                 <div style={{ color: 'var(--accent-primary)', fontSize: '0.8rem', letterSpacing: '2px' }}>SCORE</div>
+            </div>
+
+            {/* Quit Button */}
+            <div style={{ position: 'absolute', bottom: 20, left: 20 }}>
+                <button
+                    className="secondary"
+                    style={{
+                        padding: '8px 15px',
+                        fontSize: '0.7rem',
+                        opacity: 0.6,
+                        border: '1px solid rgba(0, 240, 255, 0.3)',
+                        background: 'rgba(0,0,0,0.5)'
+                    }}
+                    onMouseEnter={(e) => e.target.style.opacity = 1}
+                    onMouseLeave={(e) => e.target.style.opacity = 0.6}
+                    onClick={handleQuit}
+                >
+                    QUIT MISSION
+                </button>
             </div>
 
             {/* Leaderboard HUD */}
@@ -293,11 +336,9 @@ export default function GameCanvas() {
                                 <div style={{ color: '#888' }}>{Object.keys(votes).length} / {playerCount} Ready</div>
                             </div>
                         )}
-                        <button className="secondary" style={{ padding: '20px 40px', fontSize: '1.2rem' }} onClick={() => {
-                            update(ref(db, `rooms/${roomId}`), { status: 'closed' }).then(() => {
-                                navigate('/');
-                            });
-                        }}>Exit to Base</button>
+                        <button className="secondary" style={{ padding: '20px 40px', fontSize: '1.2rem' }} onClick={handleQuit}>
+                            Exit to Base
+                        </button>
                     </div>
                 </div>
             )}

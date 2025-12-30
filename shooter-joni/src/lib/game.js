@@ -15,43 +15,60 @@ export class GameEngine {
         this.projectiles = [];
         this.particles = [];
         this.scorePopups = []; // Floating text
-        this.stars = this.initStars();
+        this.starLayers = this.initStarLayers(); // Pre-rendered star fields
         this.shake = 0;
 
         this.running = false;
         this.lastTime = 0;
         this.paused = false;
 
-        // Assets - move processing to onload to avoid lag
+        // Local ID
+        this.myUid = null;
+
+        // Assets
         this.assets = {};
-        this.processedAssets = {}; // { key: canvas }
+        this.processedAssets = {};
+        this.tintedShipCache = {};
+        this.spriteCache = {}; // { 'alien1_normal', 'alien2_frozen', etc. }
         this.loadGameAssets();
 
         // Audio
         this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
         // Config
-        this.playerSpeed = 10; // Adjusted for better control
-        this.enemySpeed = 2;
+        this.playerSpeed = 18; // Even faster
+        this.enemySpeed = 2.5;
         this.spawnTimer = 0;
         this.lastShootTimes = {};
         this.processedShootTimes = {};
+        this.enemyFreezeEnd = 0;
 
         // Boosts state
-        this.playerBoosts = {}; // { uid: { type: 'speed'|'triple', end: timestamp } }
+        this.playerBoosts = {}; // { uid: { type: 'speed'|'triple'|'shield'|'freeze', end: timestamp } }
     }
 
-    initStars() {
-        const stars = [];
-        for (let i = 0; i < 100; i++) {
-            stars.push({
-                x: Math.random() * this.width,
-                y: Math.random() * this.height,
-                size: Math.random() * 2 + 1,
-                speed: Math.random() * 2 + 0.5
+    initStarLayers() {
+        const layers = [];
+        for (let i = 0; i < 3; i++) {
+            const canvas = document.createElement('canvas');
+            canvas.width = this.width;
+            canvas.height = this.height;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            for (let j = 0; j < 40; j++) {
+                const x = Math.random() * this.width;
+                const y = Math.random() * this.height;
+                const size = Math.random() * 2 + 0.5;
+                ctx.globalAlpha = 0.3 + Math.random() * 0.4;
+                ctx.fillRect(x, y, size, size);
+            }
+            layers.push({
+                canvas,
+                y: 0,
+                speed: (i + 1) * 0.7
             });
         }
-        return stars;
+        return layers;
     }
 
     loadGameAssets() {
@@ -69,12 +86,46 @@ export class GameEngine {
             img.src = src;
             img.onload = () => {
                 console.log(`Asset loaded: ${key}`);
-                this.processedAssets[key] = this.processAsset(img, key === 'spaceship' ? 128 : 256);
-                // Clear cache if spaceship loaded late
+                const processed = this.processAsset(img, key === 'spaceship' ? 128 : 256);
+                this.processedAssets[key] = processed;
+
                 if (key === 'spaceship') this.tintedShipCache = {};
+
+                // Pre-generate filtered versions for aliens to avoid real-time ctx.filter
+                if (key.startsWith('alien')) {
+                    const size = key === 'alien1' ? 1 : key === 'alien2' ? 2 : 3;
+                    this.preCacheAlien(key, processed, size);
+                }
             };
             this.assets[key] = img;
         });
+    }
+
+    preCacheAlien(key, canvas, size) {
+        if (!canvas) return;
+
+        // 1. Normal/Base version
+        const base = document.createElement('canvas');
+        base.width = canvas.width;
+        base.height = canvas.height;
+        const bctx = base.getContext('2d');
+
+        if (size === 3) {
+            bctx.filter = 'hue-rotate(90deg) brightness(1.2)';
+        } else if (size === 2) {
+            bctx.filter = 'hue-rotate(200deg) brightness(1.1)';
+        }
+        bctx.drawImage(canvas, 0, 0);
+        this.spriteCache[`${key}_normal`] = base;
+
+        // 2. Frozen version
+        const frozen = document.createElement('canvas');
+        frozen.width = canvas.width;
+        frozen.height = canvas.height;
+        const fctx = frozen.getContext('2d');
+        fctx.filter = 'brightness(1.5) hue-rotate(180deg) saturate(0.5)';
+        fctx.drawImage(canvas, 0, 0);
+        this.spriteCache[`${key}_frozen`] = frozen;
     }
 
     playSound(type) {
@@ -138,6 +189,14 @@ export class GameEngine {
             gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
             oscillator.start();
             oscillator.stop(now + 0.2);
+        } else if (type === 'shieldHit') {
+            oscillator.type = 'square';
+            oscillator.frequency.setValueAtTime(800, now);
+            oscillator.frequency.exponentialRampToValueAtTime(400, now + 0.1);
+            gainNode.gain.setValueAtTime(0.1, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            oscillator.start();
+            oscillator.stop(now + 0.1);
         }
     }
 
@@ -147,14 +206,15 @@ export class GameEngine {
     }
 
     addParticles(x, y, color, count = 10) {
+        if (this.particles.length > 300) return; // Lag prevention: cap total particles
         for (let i = 0; i < count; i++) {
             this.particles.push({
                 x, y,
-                vx: (Math.random() - 0.5) * 10,
-                vy: (Math.random() - 0.5) * 10,
+                vx: (Math.random() - 0.5) * 8,
+                vy: (Math.random() - 0.5) * 8,
                 life: 1.0,
                 color,
-                size: Math.random() * 4 + 2
+                size: Math.random() * 3 + 1
             });
         }
     }
@@ -162,39 +222,59 @@ export class GameEngine {
     processAsset(img, targetSize = 256) {
         if (!img.complete || img.naturalWidth <= 0) return null;
 
-        // Performance: downscale images immediately
-        const canvas = document.createElement('canvas');
-        const ratio = img.naturalHeight / img.naturalWidth;
-        canvas.width = targetSize;
-        canvas.height = targetSize * ratio;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const fullCanvas = document.createElement('canvas');
+        fullCanvas.width = img.naturalWidth;
+        fullCanvas.height = img.naturalHeight;
+        const fctx = fullCanvas.getContext('2d', { willReadFrequently: true });
+        fctx.drawImage(img, 0, 0);
 
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const imageData = fctx.getImageData(0, 0, fullCanvas.width, fullCanvas.height);
         const data = imageData.data;
 
-        // More aggressive chromakey
-        for (let i = 0; i < data.length; i += 4) {
-            const r = data[i];
-            const g = data[i + 1];
-            const b = data[i + 2];
+        // Sample the top-left pixel to detect the "fake" transparency color
+        const bgR = data[0], bgG = data[1], bgB = data[2];
+        const isBgWhiteish = (bgR + bgG + bgB) / 3 > 128;
 
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i], g = data[i + 1], b = data[i + 2];
+            const dist = Math.sqrt((r - bgR) ** 2 + (g - bgG) ** 2 + (b - bgB) ** 2);
+
+            const brightness = (r + g + b) / 3;
             const maxVal = Math.max(r, g, b);
             const minVal = Math.min(r, g, b);
-            const diff = maxVal - minVal;
+            const saturation = maxVal - minVal;
 
-            // Kill white, light grey, and checkerboard grey
-            if (maxVal > 150 && diff < 40) {
-                data[i + 3] = 0;
+            // 1. Kill pixels close to the sample background color
+            let shouldKill = dist < 40;
+
+            // 2. Kill grey/white patterns (common checkerboard)
+            if (saturation < 35) {
+                if (brightness > 80 || brightness < 40) shouldKill = true;
             }
 
-            // Kill near black
-            if (maxVal < 30) {
+            // 3. Kill extreme white/black
+            if (brightness > 230 || brightness < 15) shouldKill = true;
+
+            if (shouldKill) {
                 data[i + 3] = 0;
+            } else {
+                // Alpha Hardening: Remove fuzzy fringes
+                // If it's not background, make it 100% opaque to prevent "haze"
+                data[i + 3] = 255;
             }
         }
-        ctx.putImageData(imageData, 0, 0);
-        return canvas;
+        fctx.putImageData(imageData, 0, 0);
+
+        const finalCanvas = document.createElement('canvas');
+        const ratio = img.naturalHeight / img.naturalWidth;
+        finalCanvas.width = targetSize;
+        finalCanvas.height = targetSize * ratio;
+        const ctx = finalCanvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(fullCanvas, 0, 0, finalCanvas.width, finalCanvas.height);
+
+        return finalCanvas;
     }
 
     getTintedShip(color) {
@@ -203,29 +283,27 @@ export class GameEngine {
         if (this.tintedShipCache[color]) return this.tintedShipCache[color];
 
         const offscreen = document.createElement('canvas');
-        offscreen.width = 60;
-        offscreen.height = 60;
+        offscreen.width = 120;
+        offscreen.height = 120;
         const octx = offscreen.getContext('2d');
 
-        // Draw downscaled processed ship
-        octx.drawImage(shipCanvas, 0, 0, 60, 60);
+        octx.drawImage(shipCanvas, 30, 30, 60, 60);
 
         // Tint
         octx.globalCompositeOperation = 'source-atop';
         octx.fillStyle = color;
         octx.globalAlpha = 0.5;
-        octx.fillRect(0, 0, 60, 60);
+        octx.fillRect(0, 0, 120, 120);
         octx.globalAlpha = 1.0;
 
-        // Glow
+        // Subtle center glow
         octx.globalCompositeOperation = 'destination-over';
-        octx.shadowBlur = 15;
-        octx.shadowColor = color;
-        octx.fillStyle = color;
+        const grad = octx.createRadialGradient(60, 60, 10, 60, 60, 35);
+        grad.addColorStop(0, color);
+        grad.addColorStop(1, 'transparent');
+        octx.fillStyle = grad;
         octx.globalAlpha = 0.3;
-        octx.beginPath();
-        octx.arc(30, 30, 22, 0, Math.PI * 2);
-        octx.fill();
+        octx.fillRect(0, 0, 120, 120);
         octx.globalAlpha = 1.0;
 
         this.tintedShipCache[color] = offscreen;
@@ -233,8 +311,10 @@ export class GameEngine {
     }
 
     start() {
+        if (this.running && !this.paused) return; // Prevent duplicate loops
         this.running = true;
         this.paused = false;
+        this.lastTime = performance.now();
         requestAnimationFrame(this.loop.bind(this));
     }
 
@@ -266,34 +346,58 @@ export class GameEngine {
                 }
             });
         }
-        this.players = { ...serverPlayers };
+
+        // Apply server updates
+        Object.keys(serverPlayers).forEach(uid => {
+            const serverP = serverPlayers[uid];
+            if (!this.players[uid]) {
+                this.players[uid] = serverP;
+                return;
+            }
+
+            // Sync Logic:
+            // If it's NOT ME, take the server position as gospel.
+            // If it's ME, KEEP my local X/Y but update health/score/etc. from server.
+            if (uid !== this.myUid) {
+                this.players[uid] = { ...this.players[uid], ...serverP };
+            } else {
+                const { x, y, ...meta } = serverP;
+                this.players[uid] = { ...this.players[uid], ...meta };
+            }
+        });
+
+        // Cleanup stale players
+        Object.keys(this.players).forEach(uid => {
+            if (!serverPlayers[uid]) delete this.players[uid];
+        });
     }
 
     updateEnemies(serverEnemies) {
         if (!this.isHost) {
-            this.enemies = serverEnemies || [];
+            this.enemies = serverEnemies ? Object.values(serverEnemies) : [];
         }
     }
 
     updateBoosts(serverBoosts) {
         if (!this.isHost) {
-            this.boosts = serverBoosts || [];
+            this.boosts = serverBoosts ? Object.values(serverBoosts) : [];
         }
     }
 
     updateProjectiles(serverProjectiles) {
         if (!this.isHost) {
-            this.projectiles = serverProjectiles || [];
+            this.projectiles = serverProjectiles ? Object.values(serverProjectiles) : [];
         }
     }
 
-    handleInput(input, myUid) {
+    handleInput(input, myUid, dt = 16.6) {
         if (this.paused) return null;
         const p = this.players[myUid];
         if (!p) return null;
 
         const boost = this.playerBoosts[myUid];
-        const speed = boost && boost.type === 'speed' ? this.playerSpeed * 1.6 : this.playerSpeed;
+        const multiplier = boost && boost.type === 'speed' ? 1.7 : 1.0;
+        const speed = this.playerSpeed * multiplier * (dt / 16.6);
 
         if (input.left && p.x > 0) p.x -= speed;
         if (input.right && p.x < this.width - 50) p.x += speed;
@@ -308,7 +412,7 @@ export class GameEngine {
         const now = Date.now();
         const lastShoot = this.lastShootTimes[myUid] || 0;
         const boost = this.playerBoosts[myUid];
-        const delay = boost && boost.type === 'speed' ? 120 : 250;
+        const delay = boost && boost.type === 'speed' ? 200 : 400;
 
         if (now - lastShoot < delay) return null;
 
@@ -346,20 +450,18 @@ export class GameEngine {
     }
 
     update(dt) {
-        // Move Stars
-        this.stars.forEach(star => {
-            star.y += star.speed;
-            if (star.y > this.height) {
-                star.y = -star.size;
-                star.x = Math.random() * this.width;
-            }
+        // Update Star Layers
+        this.starLayers.forEach(layer => {
+            layer.y += layer.speed * (dt / 16.6);
+            if (layer.y >= this.height) layer.y = 0;
         });
 
         // Update Particles
         this.particles.forEach(p => {
-            p.x += p.vx;
-            p.y += p.vy;
-            p.life -= 0.02;
+            const ratio = dt / 16.6;
+            p.x += p.vx * ratio;
+            p.y += p.vy * ratio;
+            p.life -= 0.02 * ratio;
         });
         this.particles = this.particles.filter(p => p.life > 0);
 
@@ -380,48 +482,66 @@ export class GameEngine {
             }
         });
 
+        const isFrozen = this.enemyFreezeEnd > now;
+
         if (this.isHost) {
-            this.projectiles.forEach(p => p.y -= 10);
+            const ratio = dt / 16.6;
+            this.projectiles.forEach(p => p.y -= 10 * ratio);
             this.projectiles = this.projectiles.filter(p => p.y > -50);
 
-            this.spawnTimer += 16;
+            this.spawnTimer += dt || 16;
             if (this.spawnTimer > 1000) {
                 this.spawnTimer = 0;
                 // Randomly spawn size 1, 2, or 3
                 const roll = Math.random();
                 let size = 1;
-                if (roll > 0.8) size = 3; // 20% Mothership
-                else if (roll > 0.5) size = 2; // 30% Cruiser
-                // else size = 1 // 50% Scout
+                let hp = 2;
+                if (roll > 0.8) {
+                    size = 3;
+                    hp = 7;
+                }
+                else if (roll > 0.5) {
+                    size = 2;
+                    hp = 4;
+                }
 
                 this.enemies.push({
                     id: Date.now() + Math.random(),
                     x: Math.random() * (this.width - (40 + size * 20)),
                     y: -100,
                     size: size,
-                    hp: size,
-                    maxHp: size,
+                    hp: hp,
+                    maxHp: hp,
                     width: 40 + size * 20,
                     height: 40 + size * 20
                 });
 
                 // Spawn boost occasionally
                 if (Math.random() > 0.9) {
+                    const bRoll = Math.random();
+                    let bType = 'speed';
+                    if (bRoll > 0.75) bType = 'freeze';
+                    else if (bRoll > 0.50) bType = 'shield';
+                    else if (bRoll > 0.25) bType = 'triple';
+
                     this.boosts.push({
                         id: 'boost_' + Date.now(),
                         x: Math.random() * (this.width - 40),
                         y: -50,
-                        type: Math.random() > 0.5 ? 'speed' : 'triple'
+                        type: bType
                     });
                 }
             }
 
-            this.enemies.forEach(e => {
-                e.y += this.enemySpeed * (1.5 - (e.size * 0.2)); // Larger ones are slower
-            });
+            if (!isFrozen) {
+                this.enemies.forEach(e => {
+                    const eSpeed = this.enemySpeed * (1.5 - (e.size * 0.2));
+                    e.y += eSpeed * ratio;
+                });
+            }
 
             this.boosts.forEach(b => {
-                b.y += 3;
+                b.y += 3 * ratio;
             });
 
             this.enemies = this.enemies.filter(e => e.y < this.height);
@@ -475,6 +595,14 @@ export class GameEngine {
                         pl.y < e.y + e.height &&
                         pl.y + 50 > e.y
                     ) {
+                        const boost = this.playerBoosts[uid];
+                        if (boost && boost.type === 'shield') {
+                            this.addParticles(e.x + e.width / 2, e.y + e.height / 2, '#00ffff', 10);
+                            this.playSound('shieldHit');
+                            this.enemies.splice(eIdx, 1);
+                            return;
+                        }
+
                         this.addParticles(pl.x + 25, pl.y + 25, '#ffffff', 20);
                         this.playSound('hit');
                         this.shake = 10;
@@ -500,6 +628,12 @@ export class GameEngine {
                             type: b.type,
                             end: Date.now() + 8000 // 8 seconds
                         };
+
+                        // New: Freeze Logic
+                        if (b.type === 'freeze') {
+                            this.enemyFreezeEnd = Date.now() + 4000; // 4 seconds
+                        }
+
                         this.addScorePopup(pl.x, pl.y, b.type.toUpperCase() + ' BOOST!', '#00ffff');
                     }
                 });
@@ -531,13 +665,11 @@ export class GameEngine {
         this.ctx.fillStyle = '#050505';
         this.ctx.fillRect(0, 0, this.width, this.height);
 
-        // Draw Stars
-        this.ctx.fillStyle = '#ffffff';
-        this.stars.forEach(star => {
-            this.ctx.globalAlpha = 0.5 + Math.random() * 0.5;
-            this.ctx.fillRect(star.x, star.y, star.size, star.size);
+        // Draw Star Layers
+        this.starLayers.forEach(layer => {
+            this.ctx.drawImage(layer.canvas, 0, layer.y);
+            this.ctx.drawImage(layer.canvas, 0, layer.y - this.height);
         });
-        this.ctx.globalAlpha = 1.0;
 
         // Draw Particles
         this.particles.forEach(p => {
@@ -547,14 +679,32 @@ export class GameEngine {
         });
         this.ctx.globalAlpha = 1.0;
 
+        const isFrozen = this.enemyFreezeEnd > Date.now();
+
         // Draw Players
         Object.keys(this.players).forEach(uid => {
             const p = this.players[uid];
+            const boost = this.playerBoosts[uid];
+
+            // Shield Effect
+            if (boost && boost.type === 'shield') {
+                this.ctx.strokeStyle = '#00f0ff';
+                this.ctx.lineWidth = 3;
+                this.ctx.beginPath();
+                this.ctx.arc(p.x + 30, p.y + 30, 45, 0, Math.PI * 2);
+                this.ctx.stroke();
+
+                // Low-cost inner glow
+                this.ctx.fillStyle = 'rgba(0, 240, 255, 0.1)';
+                this.ctx.fill();
+            }
+
             // Render ship sprite
             const tintedShip = this.getTintedShip(p.color || '#fff');
             if (tintedShip) {
                 try {
-                    this.ctx.drawImage(tintedShip, p.x, p.y);
+                    // Offset for higher res canvas
+                    this.ctx.drawImage(tintedShip, p.x - 30, p.y - 30);
                 } catch (e) { }
             } else if (this.assets.spaceship.complete && this.assets.spaceship.naturalWidth > 0) {
                 try {
@@ -574,21 +724,12 @@ export class GameEngine {
 
         // Draw Enemies
         this.enemies.forEach(e => {
-            const processed = this.processedAssets['alien' + (e.size || 1)];
+            const state = isFrozen ? 'frozen' : 'normal';
+            const cacheKey = `alien${e.size || 1}_${state}`;
+            const sprite = this.spriteCache[cacheKey] || this.processedAssets['alien' + (e.size || 1)];
 
-            if (processed) {
-                try {
-                    if (e.size === 3) {
-                        this.ctx.save();
-                        this.ctx.filter = 'hue-rotate(90deg) brightness(1.2)';
-                        this.ctx.drawImage(processed, e.x, e.y, e.width, e.height);
-                        this.ctx.restore();
-                    } else {
-                        this.ctx.drawImage(processed, e.x, e.y, e.width, e.height);
-                    }
-                } catch (err) {
-                    this.drawEnemyFallback(e);
-                }
+            if (sprite) {
+                this.ctx.drawImage(sprite, e.x, e.y, e.width, e.height);
             } else {
                 this.drawEnemyFallback(e);
             }
@@ -604,11 +745,12 @@ export class GameEngine {
 
         // Draw Boosts
         this.boosts.forEach(b => {
-            this.ctx.fillStyle = b.type === 'speed' ? '#00ffff' : '#ff00ff';
-            this.ctx.shadowBlur = 15;
-            this.ctx.shadowColor = this.ctx.fillStyle;
+            // Speed: Gold, Shield: Blue, Triple: Pink, Freeze: Cyan/Ice
+            this.ctx.fillStyle = b.type === 'speed' ? '#ffcc00' :
+                b.type === 'shield' ? '#0066ff' :
+                    b.type === 'freeze' ? '#99ffff' : '#ff00ff';
 
-            // Draw a glowing hex
+            // Draw a glowing hex (no shadowBlur)
             this.ctx.beginPath();
             for (let i = 0; i < 6; i++) {
                 const ang = (i * Math.PI) / 3;
@@ -619,13 +761,22 @@ export class GameEngine {
             }
             this.ctx.closePath();
             this.ctx.fill();
-            this.ctx.shadowBlur = 0;
+
+            // Simple halo
+            this.ctx.globalAlpha = 0.2;
+            this.ctx.beginPath();
+            this.ctx.arc(b.x + 20, b.y + 20, 25, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.globalAlpha = 1.0;
 
             // Icon letter
             this.ctx.fillStyle = 'white';
             this.ctx.font = 'bold 16px Outfit';
             this.ctx.textAlign = 'center';
-            this.ctx.fillText(b.type === 'speed' ? 'S' : 'T', b.x + 20, b.y + 26);
+            let label = b.type === 'speed' ? 'S' :
+                b.type === 'shield' ? 'H' :
+                    b.type === 'freeze' ? 'F' : 'T';
+            this.ctx.fillText(label, b.x + 20, b.y + 26);
         });
 
         // Draw Score Popups
@@ -641,10 +792,11 @@ export class GameEngine {
         // Draw Projectiles
         this.projectiles.forEach(p => {
             this.ctx.fillStyle = p.color || '#00f0ff';
-            this.ctx.shadowBlur = 10;
-            this.ctx.shadowColor = this.ctx.fillStyle;
             this.ctx.fillRect(p.x - 2, p.y, 4, 15);
-            this.ctx.shadowBlur = 0;
+            // Simpler neon halo (just a semi-transparent rect underneath)
+            this.ctx.globalAlpha = 0.3;
+            this.ctx.fillRect(p.x - 4, p.y - 2, 8, 19);
+            this.ctx.globalAlpha = 1.0;
         });
 
         this.ctx.restore();
