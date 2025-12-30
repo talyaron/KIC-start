@@ -327,7 +327,23 @@ export class GameEngine {
         this.playSound('gameOver');
     }
 
-    updatePlayers(serverPlayers) {
+    updatePlayers(rawServerPlayers) {
+        if (!rawServerPlayers) {
+            this.players = {};
+            return;
+        }
+
+        // Filter out ghosts/inactive players (older than 8s)
+        const now = Date.now();
+        const serverPlayers = {};
+        Object.keys(rawServerPlayers).forEach(uid => {
+            const p = rawServerPlayers[uid];
+            // If it's ME, it's always active. If it's someone else, check heartbeat.
+            if (uid === this.myUid || (now - (p.lastActive || 0)) < 8000) {
+                serverPlayers[uid] = p;
+            }
+        });
+
         if (this.isHost) {
             Object.keys(serverPlayers).forEach(uid => {
                 const p = serverPlayers[uid];
@@ -351,11 +367,18 @@ export class GameEngine {
             });
         }
 
-        // Apply server updates
+        // Apply filtered server updates
         Object.keys(serverPlayers).forEach(uid => {
             const serverP = serverPlayers[uid];
             if (!this.players[uid]) {
-                this.players[uid] = serverP;
+                const p = { ...serverP };
+                if (uid !== this.myUid) {
+                    p.x = serverP.x;
+                    p.y = serverP.y;
+                    p.targetX = serverP.x;
+                    p.targetY = serverP.y;
+                }
+                this.players[uid] = p;
                 return;
             }
 

@@ -117,12 +117,15 @@ export default function GameCanvas() {
             }
 
             if (data.players) {
-                const count = Object.keys(data.players).length;
-                setPlayerCount(count);
+                const now = Date.now();
+                const activePlayers = Object.values(data.players).filter(p => (now - (p.lastActive || 0)) < 8000);
+                const activeCount = activePlayers.length;
+                setPlayerCount(activeCount);
 
                 if (engine.isHost && data.votes) {
                     const voteUids = Object.keys(data.votes);
-                    if (voteUids.length >= count && count > 0) {
+                    // Only require votes from active players
+                    if (voteUids.length >= activeCount && activeCount > 0) {
                         const resetPlayers = {};
                         Object.keys(data.players).forEach(pUid => {
                             resetPlayers[pUid] = {
@@ -211,6 +214,13 @@ export default function GameCanvas() {
                         engine.addProjectile(p.x + 25, p.y, user.uid, p.color);
                     }
                 }
+
+                // Heartbeat every ~2 seconds to prevent ghosting
+                if (!window.lastHeartbeat || Date.now() - window.lastHeartbeat > 2000) {
+                    updatePayload[`players/${user.uid}/lastActive`] = Date.now();
+                    window.lastHeartbeat = Date.now();
+                }
+
                 update(roomRef, updatePayload).catch(() => { });
             }
         }, 50);
