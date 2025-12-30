@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { GameEngine } from '../lib/game';
 import { db } from '../lib/firebase';
-import { ref, update, onValue } from 'firebase/database';
+import { ref, update, onValue, onDisconnect } from 'firebase/database';
 
 export default function GameCanvas() {
     const { roomId } = useParams();
@@ -24,11 +24,12 @@ export default function GameCanvas() {
 
     const handleQuit = async () => {
         if (!user || !roomId) return;
+        const roomPlayersRef = ref(db, `rooms/${roomId}/players`);
         const playerRef = ref(db, `rooms/${roomId}/players/${user.uid}`);
         try {
-            // Stop engine and remove self from database
             if (engineRef.current) engineRef.current.stop();
-            await update(ref(db, `rooms/${roomId}/players`), { [user.uid]: null });
+            await onDisconnect(playerRef).cancel();
+            await update(roomPlayersRef, { [user.uid]: null });
             navigate('/');
         } catch (err) {
             console.error("Error quitting:", err);
@@ -48,7 +49,6 @@ export default function GameCanvas() {
             canvas,
             false,
             (state) => {
-                // On State Update (Host Only)
                 if (state.type === 'UPDATE_STATE') {
                     update(roomRef, {
                         enemies: state.enemies,
@@ -75,7 +75,6 @@ export default function GameCanvas() {
             () => {
                 setGameOver(true);
                 engine.pause();
-                // We don't stop the loop, just pause updates
             }
         );
         engineRef.current = engine;
@@ -94,7 +93,6 @@ export default function GameCanvas() {
                 setPlayers(data.players);
                 engine.updatePlayers(data.players);
 
-                // Check for Death (Client Side)
                 const myPlayer = data.players[user.uid];
                 if (myPlayer && myPlayer.hp <= 0) {
                     setGameOver(true);
@@ -107,7 +105,6 @@ export default function GameCanvas() {
                 if (data.projectiles) engine.updateProjectiles(data.projectiles);
             }
 
-            // Sync votes and player count
             if (data.votes) {
                 setVotes(data.votes);
             } else {
@@ -118,14 +115,11 @@ export default function GameCanvas() {
                 const count = Object.keys(data.players).length;
                 setPlayerCount(count);
 
-                // Auto-restart logic for Host
                 if (engine.isHost && data.votes) {
                     const voteUids = Object.keys(data.votes);
                     if (voteUids.length >= count && count > 0) {
-                        // Reset Game
-                        console.log("All players voted! Restarting...");
                         const resetPlayers = {};
-                        Object.keys(data.players || {}).forEach(pUid => {
+                        Object.keys(data.players).forEach(pUid => {
                             resetPlayers[pUid] = {
                                 ...data.players[pUid],
                                 hp: 100,
@@ -140,7 +134,7 @@ export default function GameCanvas() {
                             status: 'playing',
                             enemies: null,
                             projectiles: null,
-                            votes: null, // Clear votes
+                            votes: null,
                             players: resetPlayers
                         }).then(() => {
                             setGameOver(false);
@@ -151,16 +145,20 @@ export default function GameCanvas() {
                 }
             }
 
-            if (data.status === 'playing' && gameOver) {
+            if (data.status === 'playing' && (gameOver || engine.paused)) {
                 setGameOver(false);
                 setHasVoted(false);
-                engine.start();
+                if (engine.paused) engine.paused = false;
+                if (!engine.running) engine.start();
             }
         });
 
+        // Set up onDisconnect for in-game
+        const playerRef = ref(db, `rooms/${roomId}/players/${user.uid}`);
+        onDisconnect(playerRef).remove();
+
         engine.start();
 
-        // Input Listeners
         const handleDown = (e) => {
             if (e.code === 'ArrowLeft') keys.current.left = true;
             if (e.code === 'ArrowRight') keys.current.right = true;
@@ -179,23 +177,20 @@ export default function GameCanvas() {
         window.addEventListener('keydown', handleDown);
         window.addEventListener('keyup', handleUp);
 
-        // High-frequency local update loop (60Hz+)
         let frameId;
         let lastSmoothTime = performance.now();
-        const smoothInput = (timestamp) => {
+        const smoothInput = () => {
             const now = performance.now();
             const dt = now - lastSmoothTime;
             lastSmoothTime = now;
 
             if (engine.running && !engine.paused) {
-                // Pass dt to ensure frame-rate independent smooth movement
                 engine.handleInput(keys.current, user.uid, dt);
             }
             frameId = requestAnimationFrame(smoothInput);
         };
         frameId = requestAnimationFrame(smoothInput);
 
-        // Lower-frequency sync loop to server (20Hz)
         const inputInterval = setInterval(() => {
             const p = engine.players[user.uid];
             if (p) {
@@ -211,7 +206,6 @@ export default function GameCanvas() {
                         engine.addProjectile(p.x + 25, p.y, user.uid, p.color);
                     }
                 }
-
                 update(roomRef, updatePayload).catch(() => { });
             }
         }, 50);
@@ -230,8 +224,6 @@ export default function GameCanvas() {
         <div className="full-screen" style={{ background: '#000' }}>
             <canvas ref={canvasRef} style={{ display: 'block' }} />
 
-
-            {/* Top HUD: Current Player Score */}
             <div style={{ position: 'absolute', top: 20, left: 20, pointerEvents: 'none' }}>
                 <h1 className="neon-text" style={{ fontSize: '2.5rem', margin: 0 }}>
                     {engineRef.current?.players[user.uid]?.score || 0}
@@ -239,7 +231,6 @@ export default function GameCanvas() {
                 <div style={{ color: 'var(--accent-primary)', fontSize: '0.8rem', letterSpacing: '2px' }}>SCORE</div>
             </div>
 
-            {/* Quit Button */}
             <div style={{ position: 'absolute', bottom: 20, left: 20 }}>
                 <button
                     className="secondary"
@@ -258,7 +249,6 @@ export default function GameCanvas() {
                 </button>
             </div>
 
-            {/* Leaderboard HUD */}
             <div style={{
                 position: 'absolute', top: 20, right: 20,
                 color: 'white', background: 'rgba(0,0,0,0.3)',
@@ -290,7 +280,6 @@ export default function GameCanvas() {
                     <h1 className="neon-text" style={{ fontSize: '5rem', color: 'var(--accent-danger)', marginBottom: '0' }}>GAME OVER</h1>
                     <div style={{ color: 'white', fontSize: '1.2rem', marginBottom: '20px', opacity: 0.8 }}>The alien invasion continues...</div>
 
-                    {/* Mission Stats */}
                     <div style={{
                         background: 'rgba(255,255,255,0.05)', padding: '20px', borderRadius: '15px',
                         border: '1px solid rgba(255,255,255,0.1)', marginBottom: '30px', minWidth: '300px'

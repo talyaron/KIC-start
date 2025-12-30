@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { db } from '../lib/firebase';
-import { ref, set, onValue, update, get } from 'firebase/database';
+import { ref, set, onValue, update, get, onDisconnect } from 'firebase/database';
 
 const PLAYER_COLORS = [
     '#00f0ff', // Cyan
@@ -99,6 +99,8 @@ export default function Lobby() {
                         color: availableColor,
                         score: 0,
                         kills: { 1: 0, 2: 0, 3: 0 }
+                    }).then(() => {
+                        onDisconnect(playerRef).remove();
                     }).catch(e => console.error("Error joining:", e));
                 });
             }

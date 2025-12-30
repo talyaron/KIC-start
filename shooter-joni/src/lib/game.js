@@ -334,6 +334,10 @@ export class GameEngine {
                 const last = this.processedShootTimes[uid] || 0;
                 if (p.lastShoot && p.lastShoot > last) {
                     this.processedShootTimes[uid] = p.lastShoot;
+
+                    // SKip duplicate add for local host ship (already added in local loop)
+                    if (uid === this.myUid) return;
+
                     const boost = this.playerBoosts[uid];
                     if (boost && boost.type === 'triple') {
                         this.addProjectile(p.x + 5, p.y + 10, uid, p.color);
@@ -356,10 +360,21 @@ export class GameEngine {
             }
 
             // Sync Logic:
-            // If it's NOT ME, take the server position as gospel.
+            // If it's NOT ME, interpolate towards server position.
             // If it's ME, KEEP my local X/Y but update health/score/etc. from server.
             if (uid !== this.myUid) {
-                this.players[uid] = { ...this.players[uid], ...serverP };
+                // Store target position for interpolation
+                this.players[uid] = {
+                    ...this.players[uid],
+                    ...serverP,
+                    targetX: serverP.x,
+                    targetY: serverP.y
+                };
+                // If it's a new player, snap immediately
+                if (this.players[uid].x === undefined) {
+                    this.players[uid].x = serverP.x;
+                    this.players[uid].y = serverP.y;
+                }
             } else {
                 const { x, y, ...meta } = serverP;
                 this.players[uid] = { ...this.players[uid], ...meta };
@@ -464,6 +479,19 @@ export class GameEngine {
             p.life -= 0.02 * ratio;
         });
         this.particles = this.particles.filter(p => p.life > 0);
+
+        // Update Other Players (Interpolation)
+        Object.keys(this.players).forEach(uid => {
+            if (uid === this.myUid) return;
+            const p = this.players[uid];
+            if (p.targetX !== undefined && p.targetY !== undefined) {
+                // Smoothly move towards target (lerp)
+                // Using a factor that feels responsive but smooth at 20Hz updates
+                const lerpFactor = 0.15;
+                p.x += (p.targetX - p.x) * lerpFactor;
+                p.y += (p.targetY - p.y) * lerpFactor;
+            }
+        });
 
         // Update Score Popups
         this.scorePopups.forEach(p => {
@@ -708,7 +736,8 @@ export class GameEngine {
                 } catch (e) { }
             } else if (this.assets.spaceship.complete && this.assets.spaceship.naturalWidth > 0) {
                 try {
-                    this.ctx.drawImage(this.assets.spaceship, p.x, p.y, 60, 60);
+                    // Draw fallback at same centered offset as tinted ships
+                    this.ctx.drawImage(this.assets.spaceship, p.x - 30, p.y - 30, 120, 120);
                 } catch (e) { }
             } else {
                 this.ctx.fillStyle = p.color || '#fff';
