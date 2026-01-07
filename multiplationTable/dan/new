@@ -1,0 +1,99 @@
+import tkinter as tk
+from tkinter import messagebox
+import random
+import time
+
+class MultiplicationGame:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Multiplication Challenge")
+        self.root.geometry("400x450")
+        
+        self.question_count = 0
+        self.score = 0
+        self.correct_answers = 0
+        self.current_problem = (0, 0)
+        self.start_time = 0
+        
+        self.main_frame = tk.Frame(self.root)
+        self.main_frame.pack(expand=True, fill="both")
+        
+        self.show_start_screen()
+
+    def clear_frame(self):
+        for widget in self.main_frame.winfo_children():
+            widget.destroy()
+
+    def show_start_screen(self):
+        self.clear_frame()
+        tk.Label(self.main_frame, text="Multiplication Challenge", font=("Arial", 20, "bold")).pack(pady=40)
+        tk.Button(self.main_frame, text="Start Game", font=("Arial", 14), 
+                  command=self.start_game, bg="#4CAF50", fg="white", width=15).pack()
+
+    def start_game(self):
+        self.question_count = 0
+        self.score = 0
+        self.correct_answers = 0
+        self.next_question()
+
+    def next_question(self):
+        if self.question_count < 20:
+            self.question_count += 1
+            self.current_problem = (random.randint(1, 10), random.randint(1, 10))
+            self.show_game_screen()
+            self.start_time = time.time()
+        else:
+            self.show_results_screen()
+
+    def show_game_screen(self):
+        self.clear_frame()
+        
+        tk.Label(self.main_frame, text=f"Question {self.question_count} / 20", font=("Arial", 10)).pack(pady=5)
+        
+        x, y = self.current_problem
+        tk.Label(self.main_frame, text=f"{x} × {y} = ?", font=("Arial", 35, "bold")).pack(pady=20)
+        
+        self.answer_entry = tk.Entry(self.main_frame, font=("Arial", 20), justify='center')
+        self.answer_entry.pack(pady=10)
+        self.answer_entry.focus_set()
+        
+        self.root.bind('<Return>', lambda event: self.check_answer())
+        tk.Button(self.main_frame, text="Submit", font=("Arial", 12), 
+                  command=self.check_answer, bg="#2196F3", fg="white", width=10).pack(pady=20)
+
+    def check_answer(self):
+        try:
+            user_input = self.answer_entry.get()
+            if not user_input: return
+            
+            user_ans = int(user_input)
+            duration = time.time() - self.start_time
+            x, y = self.current_problem
+            
+            if user_ans == x * y:
+                self.correct_answers += 1
+                points = 5
+                if duration < 2: points += 3
+                elif duration < 4: points += 2
+                elif duration < 6: points += 1
+                self.score += points
+            
+            self.next_question()
+        except ValueError:
+            messagebox.showwarning("Error", "Please enter a valid number")
+
+    def show_results_screen(self):
+        self.clear_frame()
+        accuracy = (self.correct_answers / 20) * 100
+        
+        tk.Label(self.main_frame, text="Results", font=("Arial", 24, "bold")).pack(pady=20)
+        tk.Label(self.main_frame, text=f"Correct: {self.correct_answers} / 20", font=("Arial", 14)).pack()
+        tk.Label(self.main_frame, text=f"Accuracy: {accuracy}%", font=("Arial", 14)).pack()
+        tk.Label(self.main_frame, text=f"Final Score: {self.score}", font=("Arial", 26, "bold"), fg="blue").pack(pady=30)
+        
+        tk.Button(self.main_frame, text="Play Again", command=self.show_start_screen, width=15).pack()
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    game = MultiplicationGame(root)
+    root.mainloop()

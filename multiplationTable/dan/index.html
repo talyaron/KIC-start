@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplication Challenge | Master the Tables</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="app">
+        <!-- Start Screen -->
+        <section id="screen-start" class="screen active">
+            <div class="card">
+                <div class="icon" style="font-size: 4rem; margin-bottom: 1rem;">⚡</div>
+                <h1>Multiplication Challenge</h1>
+                <p>Test your speed and accuracy. 20 questions, 1 goal: Perfect Score.</p>
+                <div id="best-score"
+                    style="margin-bottom: 2rem; color: var(--accent); font-weight: 600; font-size: 1.2rem;">High Score:
+                    0</div>
+                <button class="btn" id="start-btn">Start Game</button>
+            </div>
+        </section>
+
+        <!-- Game Screen -->
+        <section id="screen-game" class="screen">
+            <div class="card">
+                <div class="game-header">
+                    <span id="question-count">Question 1 / 20</span>
+                    <span id="score-display">Score: 0</span>
+                </div>
+
+                <div class="question-box" id="question-text">
+                    7 × 8
+                </div>
+
+                <div class="input-group">
+                    <input type="number" id="answer-input" placeholder="?" autofocus>
+                    <button class="btn" id="submit-btn">Submit Answer</button>
+                </div>
+
+                <div class="timer-bar">
+                    <div class="timer-progress" id="timer-progress"></div>
+                </div>
+                <p style="font-size: 0.9rem; margin-top: 0.5rem;" id="timer-text">0.0s</p>
+            </div>
+        </section>
+
+        <!-- Results Screen -->
+        <section id="screen-results" class="screen">
+            <div class="card">
+                <h1>Game Over!</h1>
+                <div class="final-score" id="res-total-score">145</div>
+                <p>Total Points</p>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-value" id="res-accuracy">18/20</span>
+                        <span class="stat-label">Accuracy</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="res-avg-time">2.4s</span>
+                        <span class="stat-label">Avg Time</span>
+                    </div>
+                </div>
+
+                <button class="btn" id="restart-btn">Play Again</button>
+            </div>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
