@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplication Challenge</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Start Screen -->
+        <div id="start-screen" class="screen active">
+            <h1 class="title">Multiplication Challenge</h1>
+            <p class="subtitle">Test your multiplication skills!</p>
+            <div class="info-box">
+                <p><strong>20 Questions</strong></p>
+                <p>Answer quickly for bonus points!</p>
+                <p>Max Score: 160 points</p>
+            </div>
+            <button id="start-btn" class="btn btn-primary">Start Game</button>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen">
+            <div class="game-header">
+                <div class="question-counter">
+                    Question <span id="current-q">1</span> / <span id="total-q">20</span>
+                </div>
+                <div class="timer">
+                    <span id="timer-display">0.0</span>s
+                </div>
+            </div>
+
+            <div class="progress-bar">
+                <div id="progress-fill" class="progress-fill"></div>
+            </div>
+
+            <div class="question-area">
+                <div class="question">
+                    <span id="num1">?</span> &times; <span id="num2">?</span> = ?
+                </div>
+            </div>
+
+            <div class="answer-area">
+                <input type="number" id="answer-input" class="answer-input" placeholder="Your answer" autofocus>
+                <button id="submit-btn" class="btn btn-primary">Submit</button>
+            </div>
+
+            <div id="feedback" class="feedback"></div>
+
+            <div class="score-display">
+                Score: <span id="current-score">0</span>
+            </div>
+        </div>
+
+        <!-- Results Screen -->
+        <div id="results-screen" class="screen">
+            <h2 class="results-title">Game Complete!</h2>
+
+            <div class="results-grid">
+                <div class="result-card">
+                    <div class="result-label">Correct Answers</div>
+                    <div class="result-value"><span id="correct-count">0</span> / 20</div>
+                </div>
+
+                <div class="result-card">
+                    <div class="result-label">Accuracy</div>
+                    <div class="result-value"><span id="accuracy">0</span>%</div>
+                </div>
+
+                <div class="result-card">
+                    <div class="result-label">Total Time</div>
+                    <div class="result-value"><span id="total-time">0</span>s</div>
+                </div>
+
+                <div class="result-card highlight">
+                    <div class="result-label">Final Score</div>
+                    <div class="result-value"><span id="final-score">0</span> / 160</div>
+                </div>
+            </div>
+
+            <div class="score-breakdown">
+                <h3>Performance Rating</h3>
+                <div id="rating" class="rating"></div>
+            </div>
+
+            <button id="play-again-btn" class="btn btn-primary">Play Again</button>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
