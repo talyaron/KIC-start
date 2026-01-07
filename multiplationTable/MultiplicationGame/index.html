@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplication Challenge</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Firebase SDK (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <meta name="description" content="Practice your multiplication tables with this interactive and fast-paced game.">
+</head>
+
+<body>
+
+    <div class="app-container">
+        <!-- Background Shapes -->
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+        <div class="shape shape-3"></div>
+
+        <!-- Language Switcher -->
+        <div class="lang-switcher">
+            <button class="lang-btn active" data-lang="en">EN</button>
+            <button class="lang-btn" data-lang="he">HE</button>
+            <button class="lang-btn" data-lang="es">ES</button>
+        </div>
+
+        <!-- SCREEN 0: MODE SELECTION -->
+        <div id="mode-screen" class="screen active">
+            <div class="glass-panel">
+                <h1 class="main-title"><span data-i18n="titleMain">Multiplication</span><br><span class="highlight"
+                        data-i18n="titleSub">Challenge</span></h1>
+                <p class="subtitle" data-i18n="subtitle">Test your math skills! 20 Questions. Speed Bonuses.</p>
+
+                <div class="menu-buttons">
+                    <button id="single-player-btn" class="primary-btn mb-3" data-i18n="singlePlayer">Single
+                        Player</button>
+                    <button id="multi-player-btn" class="secondary-btn" data-i18n="multiPlayer">Multiplayer
+                        (1v1)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCREEN 1: START SCREEN (Single Player Intro) -->
+        <div id="start-screen" class="screen hidden">
+            <div class="glass-panel">
+                <h2 class="results-title" data-i18n="singleMode">Solo Mode</h2>
+                <div class="instruction-box">
+                    <div class="instruction-item">
+                        <span class="icon">🎯</span>
+                        <span data-i18n="accuracy">Accuracy<br><strong>5 pts</strong></span>
+                    </div>
+                    <div class="instruction-item">
+                        <span class="icon">⚡</span>
+                        <span data-i18n="speedBonus">Speed Bonus<br><strong>Up to +3 pts</strong></span>
+                    </div>
+                </div>
+
+                <button id="start-btn" class="primary-btn" data-i18n="startBtn">Start Game</button>
+                <button class="secondary-btn back-btn mt-3" data-target="mode">← Back</button>
+            </div>
+        </div>
+
+        <!-- SCREEN: LOBBY (Multiplayer) -->
+        <div id="lobby-screen" class="screen hidden">
+            <div class="glass-panel">
+                <h2 class="results-title" data-i18n="lobby">Lobby</h2>
+
+                <div id="lobby-initial">
+                    <button id="create-room-btn" class="primary-btn mb-3" data-i18n="createRoom">Create Room</button>
+                    <div class="divider">OR</div>
+                    <div class="join-input-group">
+                        <input type="text" id="room-code-input" placeholder="Enter Code" maxlength="6">
+                        <button id="join-room-btn" class="secondary-btn" data-i18n="joinRoom">Join</button>
+                    </div>
+                </div>
+
+                <div id="lobby-waiting" class="hidden">
+                    <div class="loader"></div>
+                    <p class="subtitle">Room Code: <span id="display-room-code" class="highlight">...</span></p>
+                    <p data-i18n="waitingForOpponent">Waiting for opponent...</p>
+                </div>
+
+                <button class="secondary-btn back-btn mt-3" data-target="mode">← Back</button>
+            </div>
+        </div>
+
+        <!-- SCREEN 2: GAME SCREEN -->
+        <div id="game-screen" class="screen hidden">
+            <div class="glass-panel game-panel">
+                <!-- Opponent Status (Only visible in Multiplayer) -->
+                <div id="opponent-bar" class="opponent-bar hidden">
+                    <div class="opp-info">
+                        <span data-i18n="opponent">Opponent</span>
+                        <span id="opp-score">0</span> pts
+                    </div>
+                    <div class="opp-progress-track">
+                        <div id="opp-progress-fill" class="opp-progress-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <header class="game-header">
+                    <div class="stat-badge">
+                        <span class="label" data-i18n="questionLabel">Question</span>
+                        <span class="value" id="question-progress">1 / 20</span>
+                    </div>
+                    <div class="stat-badge timer-badge">
+                        <span class="label" data-i18n="timeLabel">Time</span>
+                        <span class="value" id="timer-display">0s</span>
+                    </div>
+                    <div class="stat-badge score-badge">
+                        <span class="label" data-i18n="score">Score</span>
+                        <span class="value" id="current-score-display">0</span>
+                    </div>
+                </header>
+
+                <div class="question-container">
+                    <div class="problem" id="current-problem">
+                        <span class="number" id="num1">7</span>
+                        <span class="operator">×</span>
+                        <span class="number" id="num2">8</span>
+                        <span class="equals">=</span>
+                        <span class="question-mark">?</span>
+                    </div>
+
+                    <div class="input-wrapper">
+                        <input type="number" id="answer-input" placeholder="?" autocomplete="off" inputmode="numeric">
+                    </div>
+                    <button id="submit-btn" class="secondary-btn" data-i18n="submitBtn">Submit Answer</button>
+                    <p id="feedback-msg" class="feedback hidden"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCREEN 3: RESULTS SCREEN -->
+        <div id="results-screen" class="screen hidden">
+            <div class="glass-panel">
+                <h2 class="results-title" id="result-title" data-i18n="gameOver">Game Over!</h2>
+
+                <!-- Multiplayer Result -->
+                <p id="mp-result-msg" class="subtitle hidden"></p>
+
+                <div class="score-display">
+                    <span class="score-label" data-i18n="finalScore">Final Score</span>
+                    <span class="score-value" id="final-score">0</span>
+                    <span class="score-max">/ 160</span>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="emoji">✅</span>
+                        <span class="stat-val" id="correct-count">0/20</span>
+                        <span class="stat-lbl" data-i18n="statCorrect">Correct</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="emoji">🎯</span>
+                        <span class="stat-val" id="accuracy-display">0%</span>
+                        <span class="stat-lbl" data-i18n="statAccuracy">Accuracy</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="emoji">⏱️</span>
+                        <span class="stat-val" id="total-time">0s</span>
+                        <span class="stat-lbl" data-i18n="statTime">Total Time</span>
+                    </div>
+                </div>
+
+                <div class="results-buttons">
+                    <button id="restart-btn" class="primary-btn" data-i18n="playAgain">Play Again</button>
+                    <button class="secondary-btn back-btn mt-3" data-target="mode">Main Menu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="firebase-config.js"></script>
+    <script src="script.js"></script>
+    <script src="multiplayer.js"></script>
+</body>
+
+</html>
