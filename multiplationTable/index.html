@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplication Table Game | Mathematical Odyssey</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;600;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <!-- Mathematical Odyssey Background -->
+    <canvas id="math-canvas"></canvas>
+    <div class="blueprint-grid"></div>
+
+    <main class="app-container">
+        <!-- Start Screen -->
+        <section id="start-screen" class="screen active">
+            <div class="content-box glass">
+                <h1 class="title">MATH <span>ODYSSEY</span></h1>
+                <p class="subtitle">QUANTUM ARITHMETIC PROTOCOL // VER 1.0.4</p>
+
+                <div class="difficulty-options">
+                    <button class="diff-btn active" data-range="10">BASE-10</button>
+                    <button class="diff-btn" data-range="12">BASE-12</button>
+                </div>
+
+                <div class="main-actions">
+                    <button id="start-btn" class="primary-btn">INITIALIZE</button>
+                    <button id="view-history-btn" class="icon-btn" title="View Data logs">📊</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- History/Log Screen -->
+        <section id="history-screen" class="screen">
+            <div class="content-box glass history-box">
+                <h2 class="results-title">CENTRAL_DATA_LOG</h2>
+                <div id="history-list" class="history-list">
+                    <!-- Log entries injected here -->
+                </div>
+                <div class="history-actions">
+                    <button id="back-to-start" class="secondary-btn">BACK</button>
+                    <button id="clear-data-btn" class="danger-btn">WIPE_DATA</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Game Screen -->
+        <section id="game-screen" class="screen">
+            <div class="game-header">
+                <div class="progress-container">
+                    <div id="progress-bar" class="progress-fill"></div>
+                </div>
+                <div class="stats-bar">
+                    <div class="stat-item">
+                        <span class="label">ENTRY_SEQ</span>
+                        <span id="q-counter" class="value">01</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="label">SCORE_NET</span>
+                        <span id="current-score" class="value">000</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="content-box game-box glass" id="question-container">
+                <div class="timer-orb">
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" class="timer-bg" fill="none" stroke="rgba(255,255,255,0.05)"
+                            stroke-width="2"></circle>
+                        <circle cx="50" cy="50" r="45" class="timer-fill" id="timer-svg-path" fill="none"
+                            transform="rotate(-90 50 50)" stroke-dasharray="283" stroke-dashoffset="0"></circle>
+                    </svg>
+                    <span id="timer-text" class="timer-val">0.0S</span>
+                </div>
+
+                <div class="question-display">
+                    <span id="num1">7</span>
+                    <span class="operator">×</span>
+                    <span id="num2">8</span>
+                </div>
+
+                <div class="input-wrapper">
+                    <input type="number" id="answer-input" placeholder="" autofocus autocomplete="off">
+                </div>
+
+                <button id="submit-btn" class="primary-btn">CALCULATE</button>
+            </div>
+
+            <!-- Floating Feedback -->
+            <div id="feedback" class="feedback-toast"></div>
+        </section>
+
+        <!-- Results Screen -->
+        <section id="results-screen" class="screen">
+            <div class="content-box glass">
+                <h2 class="results-title">ANALYSIS_COMPLETE</h2>
+
+                <div class="final-stats">
+                    <div class="stat-card">
+                        <span id="final-accuracy" class="stat-val">0/20</span>
+                        <span class="stat-lbl">ACCURACY_RT</span>
+                    </div>
+                    <div class="stat-card">
+                        <span id="final-score" class="stat-val">0</span>
+                        <span class="stat-lbl">TOTAL_SCORE</span>
+                    </div>
+                    <div class="stat-card">
+                        <span id="final-time" class="stat-val">0s</span>
+                        <span class="stat-lbl">TIME_ELAPSED</span>
+                    </div>
+                    <div class="stat-card">
+                        <span id="high-score-val" class="stat-val">0</span>
+                        <span class="stat-lbl">PEAK_RECORD</span>
+                    </div>
+                </div>
+
+                <button id="restart-btn" class="primary-btn" style="margin-top: 30px;">RE-INITIALIZE</button>
+            </div>
+        </section>
+    </main>
+
+    <script type="module" src="/main.js"></script>
+</body>
+
+</html>
