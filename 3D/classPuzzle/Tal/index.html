@@ -401,7 +401,7 @@
             LOOK_SENSITIVITY: 0.002,
             LOOK_MAX_X: Math.PI / 3,
             LOOK_MAX_Y: Math.PI / 4,
-            PLAYER_MAX_HEALTH: 100,
+            PLAYER_MAX_HEALTH: 150,
 
             // Shooting
             FIRE_RATE: 0.12,
@@ -416,16 +416,17 @@
             BALLOON_FLOAT_SPEED: 0.8,
             BALLOON_FLOAT_AMPLITUDE: 3,
 
-            // AA Cannons
-            AA_CANNON_COUNT: 6,
-            AA_FIRE_RATE: 1.4,
-            AA_BASE_ACCURACY: 0.02,      // Very accurate when player flies straight
-            AA_DODGE_ACCURACY: 0.25,     // Less accurate when player is dodging
-            AA_RANGE: 350,
-            AA_TRACKING_SPEED: 1.2,
-            AA_BULLET_SPEED: 220,
-            AA_DAMAGE: 15,
-            AA_PREDICTION_TIME: 1.2,     // How far ahead to predict
+            // AA Cannons (balanced for fun)
+            AA_CANNON_COUNT: 5,
+            AA_FIRE_RATE: 3.0,           // Slower fire rate
+            AA_BASE_ACCURACY: 0.08,      // Less accurate overall
+            AA_DODGE_ACCURACY: 0.35,     // Much less accurate when dodging
+            AA_RANGE: 200,               // Shorter range
+            AA_TRACKING_SPEED: 0.6,      // Slower tracking
+            AA_BULLET_SPEED: 150,        // Slower bullets (easier to dodge)
+            AA_DAMAGE: 8,                // Less damage per hit
+            AA_PREDICTION_TIME: 0.8,     // Less prediction
+            AA_START_DELAY: 5,           // Seconds before cannons start firing
 
             // Environment
             WORLD_SIZE: 800,
@@ -1489,7 +1490,7 @@
                 lastFired: 0,
                 fireRate: CONFIG.AA_FIRE_RATE * (0.7 + Math.random() * 0.3),
                 burstCount: 0,
-                burstMax: 3 + Math.floor(Math.random() * 2)
+                burstMax: 2  // Only 2 shots per burst
             };
 
             scene.add(group);
@@ -1523,6 +1524,11 @@
         function updateAACannons(deltaTime) {
             // Update direction tracking
             updatePlayerDirectionTracking(deltaTime);
+
+            // Don't fire during grace period at start
+            if (gameState.gameTime < CONFIG.AA_START_DELAY) {
+                return;
+            }
 
             for (const cannon of aaCannons) {
                 const distance = cannon.position.distanceTo(gameState.position);
