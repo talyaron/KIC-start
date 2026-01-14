@@ -1,0 +1,131 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+:root {
+    --neon-blue: #00f3ff;
+    --neon-pink: #ff00ff;
+    --bg-color: #050510;
+}
+
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: var(--bg-color);
+    font-family: 'Orbitron', sans-serif;
+    user-select: none;
+}
+
+#game-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+#ui-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+    pointer-events: none;
+}
+
+#score-board {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    color: var(--neon-blue);
+    font-size: 24px;
+    text-shadow: 0 0 10px var(--neon-blue);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.hud-item {
+    background: rgba(0, 0, 0, 0.5);
+    padding: 10px 20px;
+    border-left: 4px solid var(--neon-pink);
+    transform: skewX(-20deg);
+}
+
+#game-over,
+#start-screen {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: white;
+    pointer-events: auto;
+}
+
+.hidden {
+    display: none !important;
+}
+
+h1 {
+    font-size: 64px;
+    margin: 0 0 20px 0;
+    color: var(--neon-pink);
+    text-shadow: 0 0 20px var(--neon-pink), 0 0 40px var(--neon-pink);
+    letter-spacing: 5px;
+}
+
+p {
+    font-size: 24px;
+    color: var(--neon-blue);
+    text-shadow: 0 0 10px var(--neon-blue);
+}
+
+button {
+    background: transparent;
+    border: 2px solid var(--neon-blue);
+    color: var(--neon-blue);
+    padding: 15px 40px;
+    font-size: 24px;
+    font-family: 'Orbitron', sans-serif;
+    cursor: pointer;
+    box-shadow: 0 0 15px var(--neon-blue);
+    transition: all 0.3s;
+    text-transform: uppercase;
+    margin-top: 20px;
+}
+
+button:hover {
+    background: var(--neon-blue);
+    color: black;
+    box-shadow: 0 0 30px var(--neon-blue);
+}
+
+/* Screen shake effect class */
+.shake {
+    animation: shake 0.5s cubic-bezier(.36, .07, .19, .97) both;
+}
+
+@keyframes shake {
+
+    10%,
+    90% {
+        transform: translate3d(-1px, 0, 0);
+    }
+
+    20%,
+    80% {
+        transform: translate3d(2px, 0, 0);
+    }
+
+    30%,
+    50%,
+    70% {
+        transform: translate3d(-4px, 0, 0);
+    }
+
+    40%,
+    60% {
+        transform: translate3d(4px, 0, 0);
+    }
+}

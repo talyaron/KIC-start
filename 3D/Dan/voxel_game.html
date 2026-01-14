@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מנוע ווקסל מקצועי - להגשה</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #87CEEB;
+            font-family: sans-serif;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        #hotbar {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 4px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 6px;
+            border-radius: 4px;
+            pointer-events: auto;
+        }
+
+        .slot {
+            width: 44px;
+            height: 44px;
+            border: 2px solid #555;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .slot.active {
+            border-color: #fff;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        #debug {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 12px;
+            text-shadow: 1px 1px #000;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="overlay">
+        <h1>המשחק מוכן!</h1>
+        <p>לחץ כדי להתחיל</p>
+        <p style="font-size: 14px; color: #aaa;">WASD - תנועה | רווח - קפיצה | עכבר - בנייה/שבירה | 1-8 - החלפת בלוק</p>
+    </div>
+
+    <div id="ui">
+        <div id="crosshair"></div>
+        <div id="debug"></div>
+        <div id="hotbar"></div>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+        // --- קונפיגורציה ---
+        const BLOCKS = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, WOOD: 4, LEAVES: 5, SAND: 6, GOLD: 7, DIAMOND: 8 };
+        const INVENTORY = [1, 2, 3, 4, 5, 6, 7, 8];
+        const BLOCK_MATS = [
+            null,
+            { color: 0x567d46 }, // Grass
+            { color: 0x6b4a2e }, // Dirt
+            { color: 0x757575 }, // Stone
+            { color: 0x4e342e }, // Wood
+            { color: 0x388e3c, transparent: true, opacity: 0.9 }, // Leaves
+            { color: 0xe3ca8f }, // Sand
+            { color: 0xffd700 }, // Gold
+            { color: 0x00e5ff }  // Diamond
+        ];
+
+        // --- משתנים ---
+        let scene, camera, renderer, controls;
+        let chunks = new Map();
+        let worldMods = new Map();
+        const player = { pos: new THREE.Vector3(8, 30, 8), vel: new THREE.Vector3(), onGround: false, selectedSlot: 0 };
+        const keys = {};
+
+        // --- אתחול ---
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB);
+            scene.fog = new THREE.Fog(0x87CEEB, 25, 80);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambient);
+            const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+            sun.position.set(10, 40, 10);
+            scene.add(sun);
+
+            controls = new PointerLockControls(camera, document.body);
+            const overlay = document.getElementById('overlay');
+            overlay.onclick = () => controls.lock();
+            controls.addEventListener('lock', () => overlay.style.display = 'none');
+            controls.addEventListener('unlock', () => overlay.style.display = 'flex');
+
+            window.onkeydown = (e) => {
+                keys[e.code] = true;
+                if (e.code.startsWith('Digit')) selectSlot(parseInt(e.key) - 1);
+            };
+            window.onkeyup = (e) => keys[e.code] = false;
+            window.onmousedown = onMouseDown;
+            window.onresize = () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            };
+
+            initUI();
+
+            // Spawn Point: מוצאים אדמה יציבה כדי שלא יהיה מסך אפור
+            player.pos.y = getHeight(8, 8) + 2;
+            camera.position.copy(player.pos);
+
+            animate();
+        }
+
+        // --- שטח ובלוקים ---
+        function getHeight(x, z) {
+            // פונקציה פשוטה ויציבה ליצירת גבעות
+            return Math.floor(10 + Math.sin(x * 0.1) * 3 + Math.cos(z * 0.1) * 3);
+        }
+
+        function getBlock(x, y, z) {
+            const key = `${Math.floor(x)},${Math.floor(y)},${Math.floor(z)}`;
+            if (worldMods.has(key)) return worldMods.get(key);
+
+            const h = getHeight(x, z);
+            if (y > h) return BLOCKS.AIR;
+            if (y === h) return BLOCKS.GRASS;
+            if (y > h - 3) return BLOCKS.DIRT;
+            return BLOCKS.STONE;
+        }
+
+        function setBlock(x, y, z, id) {
+            const key = `${Math.floor(x)},${Math.floor(y)},${Math.floor(z)}`;
+            worldMods.set(key, id);
+            refreshChunk(x, z);
+        }
+
+        function refreshChunk(wx, wz) {
+            const cx = Math.floor(wx / 16);
+            const cz = Math.floor(wz / 16);
+            const key = `${cx},${cz}`;
+            if (chunks.has(key)) {
+                scene.remove(chunks.get(key));
+                chunks.delete(key);
+            }
+        }
+
+        function buildChunks() {
+            const px = Math.floor(player.pos.x / 16);
+            const pz = Math.floor(player.pos.z / 16);
+
+            for (let x = px - 2; x <= px + 2; x++) {
+                for (let z = pz - 2; z <= pz + 2; z++) {
+                    const key = `${x},${z}`;
+                    if (!chunks.has(key)) {
+                        const group = new THREE.Group();
+                        group.position.set(x * 16, 0, z * 16);
+
+                        // יצירת צ'אנק - אופטימיזציה עם InstancedMesh
+                        const materials = BLOCK_MATS.map(m => m ? new THREE.MeshLambertMaterial(m) : null);
+                        const boxes = {}; // id -> positions[]
+
+                        for (let bx = 0; bx < 16; bx++) {
+                            for (let bz = 0; bz < 16; bz++) {
+                                const h = getHeight(x * 16 + bx, z * 16 + bz);
+                                for (let by = 0; by <= h + 5; by++) {
+                                    const id = getBlock(x * 16 + bx, by, z * 16 + bz);
+                                    if (id !== BLOCKS.AIR) {
+                                        if (!boxes[id]) boxes[id] = [];
+                                        boxes[id].push(new THREE.Vector3(bx, by, bz));
+                                    }
+                                }
+                            }
+                        }
+
+                        for (let id in boxes) {
+                            const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), materials[id], boxes[id].length);
+                            const dummy = new THREE.Object3D();
+                            boxes[id].forEach((p, i) => {
+                                dummy.position.copy(p);
+                                dummy.updateMatrix();
+                                mesh.setMatrixAt(i, dummy.matrix);
+                            });
+                            group.add(mesh);
+                        }
+
+                        scene.add(group);
+                        chunks.set(key, group);
+                    }
+                }
+            }
+        }
+
+        // --- אינטראקציה (בנייה/שבירה) ---
+        function onMouseDown(e) {
+            if (!controls.isLocked) return;
+
+            const ray = new THREE.Raycaster();
+            ray.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const intersects = ray.intersectObjects(scene.children, true);
+
+            if (intersects.length > 0 && intersects[0].distance < 8) {
+                const intersect = intersects[0];
+                const pos = intersect.point.clone();
+
+                if (e.button === 0) { // שמאלי - שבירה
+                    pos.addScaledVector(intersect.face.normal, -0.5);
+                    setBlock(pos.x, pos.y, pos.z, BLOCKS.AIR);
+                } else if (e.button === 2) { // ימני - בנייה
+                    pos.addScaledVector(intersect.face.normal, 0.5);
+                    const bx = Math.floor(pos.x), by = Math.floor(pos.y), bz = Math.floor(pos.z);
+                    // מניעת בנייה בתוך הגוף של השחקן
+                    if (bx === Math.floor(player.pos.x) && bz === Math.floor(player.pos.z)) {
+                        if (by === Math.floor(player.pos.y) || by === Math.floor(player.pos.y - 1)) return;
+                    }
+                    setBlock(bx, by, bz, INVENTORY[player.selectedSlot]);
+                }
+            }
+        }
+
+        // --- לולאת משחק ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = 0.016;
+
+            if (controls.isLocked) {
+                // תנועה
+                const dir = new THREE.Vector3();
+                if (keys['KeyW']) dir.z += 1;
+                if (keys['KeyS']) dir.z -= 1;
+                if (keys['KeyA']) dir.x -= 1;
+                if (keys['KeyD']) dir.x += 1;
+                dir.normalize();
+
+                const speed = 7;
+                controls.moveRight(dir.x * speed * dt);
+                controls.moveForward(dir.z * speed * dt);
+
+                // פיזיקה בסיסית (נפילה)
+                player.vel.y -= 30 * dt;
+                const nextY = camera.position.y + player.vel.y * dt;
+                const groundY = getHeight(camera.position.x, camera.position.z) + 1.7;
+
+                if (nextY < groundY) {
+                    camera.position.y = groundY;
+                    player.vel.y = 0;
+                    player.onGround = true;
+                } else {
+                    camera.position.y = nextY;
+                    player.onGround = false;
+                }
+
+                if (keys['Space'] && player.onGround) {
+                    player.vel.y = 10;
+                    player.onGround = false;
+                }
+
+                player.pos.copy(camera.position);
+                buildChunks();
+                document.getElementById('debug').innerText = `X: ${Math.floor(player.pos.x)} Z: ${Math.floor(player.pos.z)}`;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // --- ממשק ---
+        function initUI() {
+            const hb = document.getElementById('hotbar');
+            INVENTORY.forEach((id, i) => {
+                const slot = document.createElement('div');
+                slot.className = 'slot' + (i === 0 ? ' active' : '');
+                const color = BLOCK_MATS[id].color.toString(16).padStart(6, '0');
+                slot.style.borderBottom = `4px solid #${color}`;
+                slot.innerText = i + 1;
+                hb.appendChild(slot);
+            });
+        }
+
+        function selectSlot(i) {
+            if (i < 0 || i > 7) return;
+            player.selectedSlot = i;
+            document.querySelectorAll('.slot').forEach((s, idx) => {
+                s.classList.toggle('active', idx === i);
+            });
+        }
+
+        init();
+    </script>
+</body>
+
+</html>
