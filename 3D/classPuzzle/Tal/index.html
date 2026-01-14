@@ -417,13 +417,15 @@
             BALLOON_FLOAT_AMPLITUDE: 3,
 
             // AA Cannons
-            AA_CANNON_COUNT: 6,
-            AA_FIRE_RATE: 1.8,
-            AA_ACCURACY: 0.12,
-            AA_RANGE: 250,
-            AA_TRACKING_SPEED: 0.8,
-            AA_BULLET_SPEED: 180,
-            AA_DAMAGE: 12,
+            AA_CANNON_COUNT: 10,
+            AA_FIRE_RATE: 1.2,
+            AA_BASE_ACCURACY: 0.02,      // Very accurate when player flies straight
+            AA_DODGE_ACCURACY: 0.25,     // Less accurate when player is dodging
+            AA_RANGE: 350,
+            AA_TRACKING_SPEED: 1.2,
+            AA_BULLET_SPEED: 220,
+            AA_DAMAGE: 15,
+            AA_PREDICTION_TIME: 1.2,     // How far ahead to predict
 
             // Environment
             WORLD_SIZE: 800,
@@ -691,7 +693,12 @@
             roll: 0,
             yaw: 0,
             lookX: 0,
-            lookY: 0
+            lookY: 0,
+
+            // For AA cannon prediction - track direction changes
+            velocityHistory: [],
+            directionChangeAmount: 0,  // 0 = flying straight, higher = dodging
+            lastVelocity: new THREE.Vector3(0, 0, -1)
         };
 
         // Input state
@@ -1441,53 +1448,99 @@
         function createAACannon(x, z) {
             const group = new THREE.Group();
 
-            // Base
-            const baseGeo = new THREE.CylinderGeometry(2, 2.5, 1.5, 8);
-            const baseMat = new THREE.MeshPhongMaterial({ color: 0x444444 });
+            // Sandbag base
+            const sandbagMat = new THREE.MeshPhongMaterial({ color: 0x8b7355 });
+            for (let ring = 0; ring < 2; ring++) {
+                for (let i = 0; i < 8; i++) {
+                    const angle = (i / 8) * Math.PI * 2;
+                    const sandbagGeo = new THREE.BoxGeometry(1.5, 0.8, 1);
+                    const sandbag = new THREE.Mesh(sandbagGeo, sandbagMat);
+                    sandbag.position.set(
+                        Math.cos(angle) * 2.5,
+                        0.4 + ring * 0.7,
+                        Math.sin(angle) * 2.5
+                    );
+                    sandbag.rotation.y = angle;
+                    sandbag.castShadow = true;
+                    group.add(sandbag);
+                }
+            }
+
+            // Metal base plate
+            const baseGeo = new THREE.CylinderGeometry(1.8, 2, 0.5, 12);
+            const baseMat = new THREE.MeshPhongMaterial({ color: 0x3a3a3a, shininess: 60 });
             const base = new THREE.Mesh(baseGeo, baseMat);
-            base.position.y = 0.75;
+            base.position.y = 1.8;
             base.castShadow = true;
             group.add(base);
 
-            // Turret
-            const turretGeo = new THREE.SphereGeometry(1.5, 8, 6);
-            const turretMat = new THREE.MeshPhongMaterial({ color: 0x333333 });
-            const turret = new THREE.Mesh(turretGeo, turretMat);
-            turret.position.y = 2;
-            turret.castShadow = true;
-            group.add(turret);
+            // Rotating turret base
+            const turretBaseMat = new THREE.MeshPhongMaterial({ color: 0x2a2a2a, shininess: 40 });
+            const turretBaseGeo = new THREE.CylinderGeometry(1.2, 1.4, 0.8, 10);
+            const turretBase = new THREE.Mesh(turretBaseGeo, turretBaseMat);
+            turretBase.position.y = 2.3;
+            group.add(turretBase);
 
             // Barrel group (for rotation)
             const barrelGroup = new THREE.Group();
-            barrelGroup.position.y = 2;
+            barrelGroup.position.y = 2.5;
 
-            // Barrels (dual)
-            for (let i = -1; i <= 1; i += 2) {
-                const barrelGeo = new THREE.CylinderGeometry(0.15, 0.2, 4, 8);
-                const barrelMat = new THREE.MeshPhongMaterial({ color: 0x222222 });
+            // Gun housing
+            const housingMat = new THREE.MeshPhongMaterial({ color: 0x4a4a4a, shininess: 50 });
+            const housingGeo = new THREE.BoxGeometry(1.5, 1.2, 2.5);
+            const housing = new THREE.Mesh(housingGeo, housingMat);
+            housing.position.z = 0.5;
+            housing.castShadow = true;
+            barrelGroup.add(housing);
+
+            // Quad barrels for more firepower look
+            const barrelMat = new THREE.MeshPhongMaterial({ color: 0x1a1a1a, shininess: 80 });
+            const barrelPositions = [[-0.35, 0.25], [0.35, 0.25], [-0.35, -0.25], [0.35, -0.25]];
+            for (const [bx, by] of barrelPositions) {
+                const barrelGeo = new THREE.CylinderGeometry(0.12, 0.15, 5, 8);
                 const barrel = new THREE.Mesh(barrelGeo, barrelMat);
                 barrel.rotation.x = Math.PI / 2;
-                barrel.position.set(i * 0.5, 0, 2);
+                barrel.position.set(bx, by, 3.5);
+                barrel.castShadow = true;
                 barrelGroup.add(barrel);
+
+                // Barrel tip (flash hider)
+                const tipGeo = new THREE.CylinderGeometry(0.18, 0.12, 0.4, 8);
+                const tip = new THREE.Mesh(tipGeo, barrelMat);
+                tip.rotation.x = Math.PI / 2;
+                tip.position.set(bx, by, 6.1);
+                barrelGroup.add(tip);
             }
 
-            // Muzzle flash light
-            const muzzleLight = new THREE.PointLight(0xff8800, 0, 20);
-            muzzleLight.position.set(0, 0, 4);
-            barrelGroup.add(muzzleLight);
+            // Muzzle flash lights (multiple for quad barrels)
+            const muzzleLights = [];
+            for (const [bx, by] of barrelPositions) {
+                const muzzleLight = new THREE.PointLight(0xff6600, 0, 30);
+                muzzleLight.position.set(bx, by, 6.5);
+                barrelGroup.add(muzzleLight);
+                muzzleLights.push(muzzleLight);
+            }
+
+            // Sight/optics
+            const sightMat = new THREE.MeshPhongMaterial({ color: 0x222222 });
+            const sightGeo = new THREE.BoxGeometry(0.3, 0.5, 1);
+            const sight = new THREE.Mesh(sightGeo, sightMat);
+            sight.position.set(0, 0.8, 1);
+            barrelGroup.add(sight);
 
             group.add(barrelGroup);
 
             // Position
-            const groundY = Math.sin(x * 0.015) * Math.cos(z * 0.015) * 15 +
-                           Math.sin(x * 0.03) * Math.cos(z * 0.025) * 8;
+            const groundY = getTerrainHeight(x, z);
             group.position.set(x, groundY, z);
 
             group.userData = {
                 barrelGroup: barrelGroup,
-                muzzleLight: muzzleLight,
+                muzzleLights: muzzleLights,
                 lastFired: 0,
-                fireRate: CONFIG.AA_FIRE_RATE * (0.8 + Math.random() * 0.4)
+                fireRate: CONFIG.AA_FIRE_RATE * (0.7 + Math.random() * 0.3),
+                burstCount: 0,
+                burstMax: 3 + Math.floor(Math.random() * 3)  // Fire in bursts
             };
 
             scene.add(group);
@@ -1496,55 +1549,159 @@
             return group;
         }
 
+        // Track player direction changes for AA prediction
+        function updatePlayerDirectionTracking(deltaTime) {
+            const currentVel = gameState.velocity.clone().normalize();
+            const lastVel = gameState.lastVelocity;
+
+            // Calculate how much direction changed
+            const dot = currentVel.dot(lastVel);
+            const changeThisFrame = Math.max(0, 1 - dot) * 10;  // 0 when straight, high when turning
+
+            // Update history
+            gameState.velocityHistory.push(changeThisFrame);
+            if (gameState.velocityHistory.length > 30) {  // Track last ~0.5 seconds
+                gameState.velocityHistory.shift();
+            }
+
+            // Calculate average direction change (0 = flying straight, higher = dodging)
+            const sum = gameState.velocityHistory.reduce((a, b) => a + b, 0);
+            gameState.directionChangeAmount = sum / Math.max(1, gameState.velocityHistory.length);
+
+            gameState.lastVelocity.copy(currentVel);
+        }
+
         function updateAACannons(deltaTime) {
+            // Update direction tracking
+            updatePlayerDirectionTracking(deltaTime);
+
             for (const cannon of aaCannons) {
                 const distance = cannon.position.distanceTo(gameState.position);
 
                 if (distance < CONFIG.AA_RANGE) {
-                    // Track player
-                    const direction = new THREE.Vector3().subVectors(gameState.position, cannon.position).normalize();
+                    // PREDICTIVE TARGETING: Calculate where player will be
+                    const timeToTarget = distance / CONFIG.AA_BULLET_SPEED;
+                    const predictionTime = Math.min(timeToTarget * CONFIG.AA_PREDICTION_TIME, 2);
+
+                    // Predict future position based on current velocity
+                    const predictedPos = gameState.position.clone().add(
+                        gameState.velocity.clone().multiplyScalar(predictionTime)
+                    );
+
+                    // Direction to predicted position
+                    const direction = new THREE.Vector3().subVectors(predictedPos, cannon.position).normalize();
                     const targetYaw = Math.atan2(direction.x, direction.z);
-                    const targetPitch = Math.asin(direction.y);
+                    const targetPitch = Math.asin(Math.max(-0.99, Math.min(0.99, direction.y)));
 
-                    // Smooth rotation
+                    // Smooth rotation toward predicted position
                     const barrelGroup = cannon.userData.barrelGroup;
-                    barrelGroup.rotation.y += (targetYaw - barrelGroup.rotation.y) * CONFIG.AA_TRACKING_SPEED * deltaTime * 5;
-                    barrelGroup.rotation.x += (-targetPitch - barrelGroup.rotation.x) * CONFIG.AA_TRACKING_SPEED * deltaTime * 5;
+                    const trackSpeed = CONFIG.AA_TRACKING_SPEED * deltaTime * 8;
+                    barrelGroup.rotation.y += (targetYaw - barrelGroup.rotation.y) * trackSpeed;
+                    barrelGroup.rotation.x += (-targetPitch - barrelGroup.rotation.x) * trackSpeed;
 
-                    // Fire
-                    if (gameState.gameTime - cannon.userData.lastFired > cannon.userData.fireRate) {
-                        fireAACannon(cannon);
-                        cannon.userData.lastFired = gameState.gameTime;
+                    // Fire in bursts
+                    if (gameState.gameTime - cannon.userData.lastFired > 0.15) {  // Burst fire rate
+                        if (cannon.userData.burstCount < cannon.userData.burstMax) {
+                            fireAACannon(cannon, predictedPos);
+                            cannon.userData.burstCount++;
+                            cannon.userData.lastFired = gameState.gameTime;
+                        } else if (gameState.gameTime - cannon.userData.lastFired > cannon.userData.fireRate) {
+                            // Reset burst after cooldown
+                            cannon.userData.burstCount = 0;
+                        }
                     }
                 }
             }
         }
 
-        function fireAACannon(cannon) {
+        function fireAACannon(cannon, targetPos) {
             const barrelGroup = cannon.userData.barrelGroup;
 
-            // Calculate firing direction with some inaccuracy
-            const direction = new THREE.Vector3(0, 0, 1);
-            direction.applyQuaternion(barrelGroup.quaternion);
-            direction.x += (Math.random() - 0.5) * CONFIG.AA_ACCURACY;
-            direction.y += (Math.random() - 0.5) * CONFIG.AA_ACCURACY;
+            // Calculate accuracy based on player's flight pattern
+            // Flying straight = very accurate, dodging = less accurate
+            const dodgeFactor = Math.min(1, gameState.directionChangeAmount / 2);
+            const accuracy = CONFIG.AA_BASE_ACCURACY + (CONFIG.AA_DODGE_ACCURACY - CONFIG.AA_BASE_ACCURACY) * dodgeFactor;
+
+            // Direction toward predicted position with accuracy spread
+            const spawnPos = cannon.position.clone();
+            spawnPos.y += 2.5;
+
+            const direction = new THREE.Vector3().subVectors(targetPos, spawnPos).normalize();
+
+            // Add spread based on accuracy (less spread when player flies straight)
+            direction.x += (Math.random() - 0.5) * accuracy;
+            direction.y += (Math.random() - 0.5) * accuracy;
+            direction.z += (Math.random() - 0.5) * accuracy * 0.5;
             direction.normalize();
 
-            // Spawn position
-            const spawnPos = cannon.position.clone();
-            spawnPos.y += 2;
-            spawnPos.add(direction.clone().multiplyScalar(4));
+            // Move spawn point to barrel end
+            spawnPos.add(direction.clone().multiplyScalar(6));
 
             createBullet(spawnPos, direction, 'enemy');
-            createTracer(spawnPos.clone(), direction.clone(), 0xff6600);
+            createAATracer(spawnPos.clone(), direction.clone());
 
-            // Muzzle flash
-            cannon.userData.muzzleLight.intensity = 3;
+            // Muzzle flash on all barrels
+            for (const light of cannon.userData.muzzleLights) {
+                light.intensity = 5;
+            }
             setTimeout(() => {
-                cannon.userData.muzzleLight.intensity = 0;
-            }, 80);
+                for (const light of cannon.userData.muzzleLights) {
+                    light.intensity = 0;
+                }
+            }, 50);
 
             audioManager.playAAFire();
+        }
+
+        // Special bright tracer for AA fire
+        function createAATracer(position, direction) {
+            const tracerGroup = new THREE.Group();
+
+            // Main bright tracer line
+            const points = [];
+            for (let i = 0; i < 25; i++) {
+                points.push(position.clone().add(direction.clone().multiplyScalar(-i * 0.8)));
+            }
+
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({
+                color: 0xff6600,
+                transparent: true,
+                opacity: 1
+            });
+
+            const line = new THREE.Line(geometry, material);
+            tracerGroup.add(line);
+
+            // Glowing head
+            const glowGeo = new THREE.SphereGeometry(0.4, 8, 8);
+            const glowMat = new THREE.MeshBasicMaterial({
+                color: 0xffaa00,
+                transparent: true,
+                opacity: 0.9
+            });
+            const glow = new THREE.Mesh(glowGeo, glowMat);
+            glow.position.copy(position);
+            tracerGroup.add(glow);
+
+            // Point light on tracer head
+            const tracerLight = new THREE.PointLight(0xff6600, 2, 15);
+            tracerLight.position.copy(position);
+            tracerGroup.add(tracerLight);
+
+            tracerGroup.userData = {
+                direction: direction.clone().normalize(),
+                speed: CONFIG.AA_BULLET_SPEED,
+                lifetime: 2.5,
+                age: 0,
+                glow: glow,
+                light: tracerLight
+            };
+
+            scene.add(tracerGroup);
+            tracers.push(tracerGroup);
+
+            return tracerGroup;
         }
 
         // ==================== BULLETS ====================
@@ -1623,22 +1780,55 @@
             for (let i = tracers.length - 1; i >= 0; i--) {
                 const tracer = tracers[i];
                 const data = tracer.userData;
-
-                // Move tracer
                 const movement = data.direction.clone().multiplyScalar(data.speed * deltaTime);
-                const positions = tracer.geometry.attributes.position.array;
-                for (let j = 0; j < positions.length; j += 3) {
-                    positions[j] += movement.x;
-                    positions[j + 1] += movement.y;
-                    positions[j + 2] += movement.z;
+
+                // Check if it's a simple Line tracer or a Group (AA tracer)
+                if (tracer.isLine) {
+                    // Simple line tracer (player bullets)
+                    const positions = tracer.geometry.attributes.position.array;
+                    for (let j = 0; j < positions.length; j += 3) {
+                        positions[j] += movement.x;
+                        positions[j + 1] += movement.y;
+                        positions[j + 2] += movement.z;
+                    }
+                    tracer.geometry.attributes.position.needsUpdate = true;
+                    tracer.material.opacity = 1 - (data.age / data.lifetime);
+                } else if (tracer.isGroup) {
+                    // AA tracer group with glow and light
+                    tracer.position.add(movement);
+
+                    // Update child line geometry
+                    tracer.children.forEach(child => {
+                        if (child.isLine && child.geometry) {
+                            const positions = child.geometry.attributes.position.array;
+                            for (let j = 0; j < positions.length; j += 3) {
+                                positions[j] += movement.x;
+                                positions[j + 1] += movement.y;
+                                positions[j + 2] += movement.z;
+                            }
+                            child.geometry.attributes.position.needsUpdate = true;
+                            if (child.material) {
+                                child.material.opacity = 1 - (data.age / data.lifetime);
+                            }
+                        }
+                        if (child.isMesh && child.position) {
+                            child.position.add(movement);
+                        }
+                        if (child.isLight && child.position) {
+                            child.position.add(movement);
+                            child.intensity = Math.max(0, 2 * (1 - data.age / data.lifetime));
+                        }
+                    });
+
+                    // Update glow opacity
+                    if (data.glow && data.glow.material) {
+                        data.glow.material.opacity = 0.9 * (1 - data.age / data.lifetime);
+                    }
                 }
-                tracer.geometry.attributes.position.needsUpdate = true;
 
-                // Fade out
                 data.age += deltaTime;
-                tracer.material.opacity = 1 - (data.age / data.lifetime);
 
-                if (data.age > data.lifetime) {
+                if (data.age > data.lifetime || tracer.position.y < -10) {
                     scene.remove(tracer);
                     tracers.splice(i, 1);
                 }
@@ -2063,12 +2253,15 @@
                 createBalloon();
             }
 
-            // Spawn AA cannons
+            // Spawn AA cannons - spread across the map
             const cannonPositions = [
                 [-150, -150], [150, -150], [0, 200],
-                [-200, 100], [200, 100], [0, -200]
+                [-200, 100], [200, 100], [0, -200],
+                [-300, 0], [300, 0], [0, 300],
+                [-100, 250], [100, -280], [-250, -200],
+                [280, 220], [-180, 300]
             ];
-            for (let i = 0; i < CONFIG.AA_CANNON_COUNT; i++) {
+            for (let i = 0; i < Math.min(CONFIG.AA_CANNON_COUNT, cannonPositions.length); i++) {
                 const [x, z] = cannonPositions[i];
                 createAACannon(x, z);
             }
