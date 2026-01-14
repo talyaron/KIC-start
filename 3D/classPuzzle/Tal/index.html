@@ -1525,7 +1525,9 @@
                 lastFired: 0,
                 fireRate: CONFIG.AA_FIRE_RATE * (0.8 + Math.random() * 0.4),
                 burstCount: 0,
-                burstMax: 2
+                burstMax: 2,
+                health: 30,          // Can be destroyed!
+                radius: 6            // Hit radius
             };
 
             scene.add(group);
@@ -1877,6 +1879,7 @@
                 const bullet = bullets[i];
                 if (bullet.userData.owner !== 'player') continue;
 
+                // Check balloons
                 for (let j = balloons.length - 1; j >= 0; j--) {
                     const balloon = balloons[j];
                     const distance = bullet.position.distanceTo(balloon.position);
@@ -1896,6 +1899,35 @@
                         break;
                     }
                 }
+
+                // Check AA cannons (player can destroy them!)
+                if (bullets[i]) {  // Bullet might have been removed above
+                    const bullet = bullets[i];
+                    for (let j = aaCannons.length - 1; j >= 0; j--) {
+                        const cannon = aaCannons[j];
+                        const distance = bullet.position.distanceTo(cannon.position);
+
+                        if (distance < cannon.userData.radius) {
+                            // Hit cannon!
+                            cannon.userData.health -= 10;
+
+                            // Remove bullet
+                            scene.remove(bullet);
+                            bullets.splice(i, 1);
+
+                            if (cannon.userData.health <= 0) {
+                                // DESTROY cannon with big explosion!
+                                destroyCannon(cannon, j);
+                            } else {
+                                // Hit spark effect
+                                createExplosion(bullet.position.clone(), 0xff8800);
+                                audioManager.playHit();
+                                showMessage('HIT!');
+                            }
+                            break;
+                        }
+                    }
+                }
             }
 
             // Enemy bullets vs player
@@ -1910,6 +1942,28 @@
                     bullets.splice(i, 1);
                 }
             }
+        }
+
+        function destroyCannon(cannon, index) {
+            // Big explosion!
+            const pos = cannon.position.clone();
+            pos.y += 5;
+
+            // Multiple explosions for dramatic effect
+            createExplosion(pos.clone(), 0xff4400);
+            createExplosion(pos.clone().add(new THREE.Vector3(2, 3, 0)), 0xff8800);
+            createExplosion(pos.clone().add(new THREE.Vector3(-2, 2, 1)), 0xffaa00);
+
+            // Play explosion sound
+            audioManager.playExplosion();
+
+            // Add score
+            gameState.score += 100;
+            showMessage('+100 CANNON DESTROYED!');
+
+            // Remove cannon
+            scene.remove(cannon);
+            aaCannons.splice(index, 1);
         }
 
         // ==================== DAMAGE ====================
