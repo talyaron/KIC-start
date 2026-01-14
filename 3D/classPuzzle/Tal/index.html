@@ -389,6 +389,73 @@
         import * as THREE from 'three';
         import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 
+        // Post-processing imports
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+        import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+        import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+        // Vignette shader
+        const VignetteShader = {
+            uniforms: {
+                tDiffuse: { value: null },
+                offset: { value: 1.0 },
+                darkness: { value: 1.0 }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform sampler2D tDiffuse;
+                uniform float offset;
+                uniform float darkness;
+                varying vec2 vUv;
+                void main() {
+                    vec4 texel = texture2D(tDiffuse, vUv);
+                    vec2 uv = (vUv - vec2(0.5)) * vec2(offset);
+                    gl_FragColor = vec4(mix(texel.rgb, vec3(0.0), dot(uv, uv) * darkness), texel.a);
+                }
+            `
+        };
+
+        // Film grain shader
+        const FilmShader = {
+            uniforms: {
+                tDiffuse: { value: null },
+                time: { value: 0.0 },
+                intensity: { value: 0.05 }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform sampler2D tDiffuse;
+                uniform float time;
+                uniform float intensity;
+                varying vec2 vUv;
+
+                float random(vec2 p) {
+                    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+                }
+
+                void main() {
+                    vec4 texel = texture2D(tDiffuse, vUv);
+                    float noise = random(vUv + time) * intensity;
+                    gl_FragColor = vec4(texel.rgb + noise - intensity * 0.5, texel.a);
+                }
+            `
+        };
+
         // ==================== CONFIGURATION ====================
         const CONFIG = {
             // Player
@@ -716,12 +783,67 @@
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
         const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));  // Cap at 2 for performance
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        // PBR and cinematic rendering
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.1;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
 
         const clock = new THREE.Clock();
         const audioManager = new AudioManager();
+
+        // Post-processing setup
+        let composer;
+        let bloomPass;
+        let filmPass;
+
+        function setupPostProcessing() {
+            composer = new EffectComposer(renderer);
+
+            // Main render pass
+            const renderPass = new RenderPass(scene, camera);
+            composer.addPass(renderPass);
+
+            // Bloom for glowing effects (muzzle flash, tracers, sun)
+            bloomPass = new UnrealBloomPass(
+                new THREE.Vector2(window.innerWidth, window.innerHeight),
+                0.4,    // Bloom strength
+                0.4,    // Bloom radius
+                0.85    // Bloom threshold
+            );
+            composer.addPass(bloomPass);
+
+            // SMAA anti-aliasing (better than FXAA)
+            const smaaPass = new SMAAPass(window.innerWidth, window.innerHeight);
+            composer.addPass(smaaPass);
+
+            // Vignette for cinematic look
+            const vignettePass = new ShaderPass(VignetteShader);
+            vignettePass.uniforms['offset'].value = 0.95;
+            vignettePass.uniforms['darkness'].value = 0.6;
+            composer.addPass(vignettePass);
+
+            // Film grain for cinematic feel
+            filmPass = new ShaderPass(FilmShader);
+            filmPass.uniforms['intensity'].value = 0.03;
+            composer.addPass(filmPass);
+
+            // Output pass for correct color space
+            const outputPass = new OutputPass();
+            composer.addPass(outputPass);
+        }
+
+        // Camera smoothing for heavy aircraft feel
+        const cameraTarget = {
+            position: new THREE.Vector3(),
+            rotation: new THREE.Euler(),
+            lookX: 0,
+            lookY: 0
+        };
+        const CAMERA_LERP_SPEED = 8;  // Higher = more responsive
 
         // Entity arrays
         const balloons = [];
@@ -731,56 +853,133 @@
         const tracers = [];
         const trains = [];
 
-        // ==================== LIGHTING ====================
+        // ==================== LIGHTING (PBR Quality) ====================
+        let sunLight;
+
         function setupLighting() {
-            const ambientLight = new THREE.AmbientLight(0x6688cc, 0.6);
+            // Ambient for base illumination
+            const ambientLight = new THREE.AmbientLight(0x404050, 0.3);
             scene.add(ambientLight);
 
-            const sunLight = new THREE.DirectionalLight(0xffffee, 1.2);
-            sunLight.position.set(100, 200, 50);
+            // Main sun light with high-quality shadows
+            sunLight = new THREE.DirectionalLight(0xfff4e5, 2.0);
+            sunLight.position.set(150, 300, 100);
             sunLight.castShadow = true;
-            sunLight.shadow.mapSize.width = 1024;
-            sunLight.shadow.mapSize.height = 1024;
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
             sunLight.shadow.camera.near = 10;
-            sunLight.shadow.camera.far = 500;
-            sunLight.shadow.camera.left = -200;
-            sunLight.shadow.camera.right = 200;
-            sunLight.shadow.camera.top = 200;
-            sunLight.shadow.camera.bottom = -200;
+            sunLight.shadow.camera.far = 800;
+            sunLight.shadow.camera.left = -300;
+            sunLight.shadow.camera.right = 300;
+            sunLight.shadow.camera.top = 300;
+            sunLight.shadow.camera.bottom = -300;
+            sunLight.shadow.bias = -0.0001;
+            sunLight.shadow.normalBias = 0.02;
             scene.add(sunLight);
 
-            // Hemisphere light for sky color
-            const hemiLight = new THREE.HemisphereLight(0x88ccff, 0x44aa44, 0.4);
+            // Hemisphere light for realistic sky/ground bounce
+            const hemiLight = new THREE.HemisphereLight(
+                0x87ceeb,  // Sky color (light blue)
+                0x3d5c3d,  // Ground color (grass green)
+                0.6
+            );
             scene.add(hemiLight);
+
+            // Subtle fill light from opposite side
+            const fillLight = new THREE.DirectionalLight(0x8899bb, 0.3);
+            fillLight.position.set(-100, 50, -100);
+            scene.add(fillLight);
+
+            // Add a visible sun disc in the sky
+            createSunDisc();
         }
 
-        // ==================== SKY ====================
+        function createSunDisc() {
+            const sunGeo = new THREE.SphereGeometry(30, 32, 32);
+            const sunMat = new THREE.MeshBasicMaterial({
+                color: 0xffffee,
+                transparent: true,
+                opacity: 1
+            });
+            const sun = new THREE.Mesh(sunGeo, sunMat);
+            sun.position.set(150, 300, 100);
+            scene.add(sun);
+
+            // Sun glow
+            const glowGeo = new THREE.SphereGeometry(45, 32, 32);
+            const glowMat = new THREE.MeshBasicMaterial({
+                color: 0xffdd88,
+                transparent: true,
+                opacity: 0.3
+            });
+            const glow = new THREE.Mesh(glowGeo, glowMat);
+            glow.position.copy(sun.position);
+            scene.add(glow);
+        }
+
+        // ==================== SKY (Realistic Atmosphere) ====================
         function createSky() {
-            const skyGeometry = new THREE.SphereGeometry(900, 32, 32);
+            const skyGeometry = new THREE.SphereGeometry(1500, 64, 64);
             const skyMaterial = new THREE.ShaderMaterial({
                 uniforms: {
-                    topColor: { value: new THREE.Color(0x0066ff) },
-                    bottomColor: { value: new THREE.Color(0x99ccff) },
-                    offset: { value: 20 },
-                    exponent: { value: 0.6 }
+                    sunPosition: { value: new THREE.Vector3(150, 300, 100) },
+                    rayleigh: { value: 2.0 },
+                    turbidity: { value: 10.0 },
+                    mieCoefficient: { value: 0.005 },
+                    mieDirectionalG: { value: 0.8 }
                 },
                 vertexShader: `
                     varying vec3 vWorldPosition;
+                    varying vec3 vSunDirection;
+                    uniform vec3 sunPosition;
+
                     void main() {
                         vec4 worldPosition = modelMatrix * vec4(position, 1.0);
                         vWorldPosition = worldPosition.xyz;
+                        vSunDirection = normalize(sunPosition);
                         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                     }
                 `,
                 fragmentShader: `
-                    uniform vec3 topColor;
-                    uniform vec3 bottomColor;
-                    uniform float offset;
-                    uniform float exponent;
+                    uniform float rayleigh;
+                    uniform float turbidity;
+                    uniform float mieCoefficient;
+                    uniform float mieDirectionalG;
+
                     varying vec3 vWorldPosition;
+                    varying vec3 vSunDirection;
+
+                    // Atmospheric scattering constants
+                    const vec3 cameraPos = vec3(0.0, 0.0, 0.0);
+                    const float sunIntensity = 1000.0;
+                    const float rayleighZenithLength = 8.4e3;
+                    const float mieZenithLength = 1.25e3;
+                    const vec3 lambda = vec3(680e-9, 550e-9, 450e-9);
+                    const float pi = 3.141592653589793;
+
                     void main() {
-                        float h = normalize(vWorldPosition + offset).y;
-                        gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);
+                        vec3 direction = normalize(vWorldPosition);
+                        float zenithAngle = acos(max(0.0, dot(vec3(0.0, 1.0, 0.0), direction)));
+                        float sunTheta = acos(max(0.0, dot(direction, vSunDirection)));
+
+                        // Sky gradient
+                        float h = direction.y;
+                        vec3 skyColor = mix(
+                            vec3(0.7, 0.85, 1.0),  // Horizon - light blue
+                            vec3(0.2, 0.4, 0.9),   // Zenith - deep blue
+                            pow(max(h, 0.0), 0.5)
+                        );
+
+                        // Horizon glow near sun
+                        float sunDist = length(direction.xz - vSunDirection.xz * 0.5);
+                        float horizonGlow = exp(-sunDist * 2.0) * max(0.0, 1.0 - h * 2.0);
+                        skyColor = mix(skyColor, vec3(1.0, 0.9, 0.7), horizonGlow * 0.4);
+
+                        // Add subtle orange at horizon
+                        float horizonLine = exp(-abs(h) * 8.0);
+                        skyColor = mix(skyColor, vec3(1.0, 0.85, 0.6), horizonLine * 0.2);
+
+                        gl_FragColor = vec4(skyColor, 1.0);
                     }
                 `,
                 side: THREE.BackSide,
@@ -788,6 +987,9 @@
             });
             const sky = new THREE.Mesh(skyGeometry, skyMaterial);
             scene.add(sky);
+
+            // Add exponential fog for depth
+            scene.fog = new THREE.FogExp2(0x88aacc, 0.0012);
         }
 
         // ==================== CLOUDS ====================
@@ -811,22 +1013,29 @@
 
         function createSingleCloud() {
             const group = new THREE.Group();
-            const material = new THREE.MeshLambertMaterial({
+
+            // PBR cloud material - soft, fluffy look
+            const material = new THREE.MeshStandardMaterial({
                 color: 0xffffff,
                 transparent: true,
-                opacity: 0.85
+                opacity: 0.9,
+                roughness: 1.0,
+                metalness: 0.0,
+                emissive: 0xffffff,
+                emissiveIntensity: 0.1
             });
 
-            const sphereCount = 3 + Math.floor(Math.random() * 3);
+            const sphereCount = 4 + Math.floor(Math.random() * 4);
             for (let i = 0; i < sphereCount; i++) {
-                const radius = 5 + Math.random() * 6;
-                const geo = new THREE.SphereGeometry(radius, 6, 4);
+                const radius = 6 + Math.random() * 10;
+                const geo = new THREE.SphereGeometry(radius, 12, 8);
                 const sphere = new THREE.Mesh(geo, material);
                 sphere.position.set(
-                    (Math.random() - 0.5) * 15,
-                    (Math.random() - 0.5) * 4,
-                    (Math.random() - 0.5) * 12
+                    (Math.random() - 0.5) * 25,
+                    (Math.random() - 0.5) * 6,
+                    (Math.random() - 0.5) * 20
                 );
+                sphere.scale.y = 0.6 + Math.random() * 0.3;  // Flatten vertically
                 group.add(sphere);
             }
 
@@ -852,10 +1061,12 @@
             }
             groundGeo.computeVertexNormals();
 
-            const groundMat = new THREE.MeshPhongMaterial({
-                color: 0x3d8b3d,
-                flatShading: false,
-                shininess: 5
+            // PBR terrain material
+            const groundMat = new THREE.MeshStandardMaterial({
+                color: 0x3d7b3d,
+                roughness: 0.9,
+                metalness: 0.0,
+                flatShading: false
             });
 
             const ground = new THREE.Mesh(groundGeo, groundMat);
@@ -894,7 +1105,7 @@
 
         // ==================== ROADS ====================
         function createRoads() {
-            const roadMat = new THREE.MeshPhongMaterial({
+            const roadMat = new THREE.MeshStandardMaterial({
                 color: 0x333333,
                 shininess: 10
             });
@@ -1017,14 +1228,14 @@
             const angle = Math.atan2(dx, dz);
 
             // Rails (metal)
-            const railMat = new THREE.MeshPhongMaterial({
+            const railMat = new THREE.MeshStandardMaterial({
                 color: 0x666666,
                 shininess: 80,
                 specular: 0x888888
             });
 
             // Sleepers (wooden ties)
-            const sleeperMat = new THREE.MeshPhongMaterial({ color: 0x4a3728 });
+            const sleeperMat = new THREE.MeshStandardMaterial({ color: 0x4a3728 });
 
             const sleeperCount = Math.floor(length / 8);
             const railGauge = 3;  // Distance between rails
@@ -1071,7 +1282,7 @@
             }
 
             // Gravel bed
-            const gravelMat = new THREE.MeshPhongMaterial({ color: 0x666655 });
+            const gravelMat = new THREE.MeshStandardMaterial({ color: 0x666655 });
             const gravelGeo = new THREE.PlaneGeometry(8, length);
             const gravel = new THREE.Mesh(gravelGeo, gravelMat);
             gravel.rotation.x = -Math.PI / 2;
@@ -1124,7 +1335,7 @@
             const group = new THREE.Group();
 
             // Body
-            const bodyMat = new THREE.MeshPhongMaterial({
+            const bodyMat = new THREE.MeshStandardMaterial({
                 color: 0xcc2222,
                 shininess: 60
             });
@@ -1135,7 +1346,7 @@
             group.add(body);
 
             // Cabin
-            const cabinMat = new THREE.MeshPhongMaterial({ color: 0xdd3333 });
+            const cabinMat = new THREE.MeshStandardMaterial({ color: 0xdd3333 });
             const cabinGeo = new THREE.BoxGeometry(5, 4, 6);
             const cabin = new THREE.Mesh(cabinGeo, cabinMat);
             cabin.position.set(0, 8, -3);
@@ -1143,7 +1354,7 @@
             group.add(cabin);
 
             // Cabin windows
-            const windowMat = new THREE.MeshPhongMaterial({
+            const windowMat = new THREE.MeshStandardMaterial({
                 color: 0x88ccff,
                 shininess: 100,
                 transparent: true,
@@ -1158,7 +1369,7 @@
             }
 
             // Smokestack
-            const stackMat = new THREE.MeshPhongMaterial({ color: 0x222222 });
+            const stackMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
             const stackGeo = new THREE.CylinderGeometry(0.6, 0.8, 3, 8);
             const stack = new THREE.Mesh(stackGeo, stackMat);
             stack.position.set(0, 9, 4);
@@ -1166,7 +1377,7 @@
             group.add(stack);
 
             // Headlight
-            const lightMat = new THREE.MeshPhongMaterial({
+            const lightMat = new THREE.MeshStandardMaterial({
                 color: 0xffffaa,
                 emissive: 0xffffaa,
                 emissiveIntensity: 0.5
@@ -1181,7 +1392,7 @@
             createTrainWheels(group, 4);
 
             // Cow catcher
-            const catcherMat = new THREE.MeshPhongMaterial({ color: 0x111111 });
+            const catcherMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
             const catcherGeo = new THREE.BoxGeometry(5, 1.5, 3);
             const catcher = new THREE.Mesh(catcherGeo, catcherMat);
             catcher.position.set(0, 1.5, 9);
@@ -1196,7 +1407,7 @@
 
             // Random cargo car colors
             const carColors = [0x8b4513, 0x2e5a1c, 0x4a4a4a, 0x1e3a5f, 0x5c3317];
-            const carMat = new THREE.MeshPhongMaterial({
+            const carMat = new THREE.MeshStandardMaterial({
                 color: carColors[index % carColors.length],
                 shininess: 20
             });
@@ -1211,7 +1422,7 @@
             // Some cars have open tops with cargo
             if (Math.random() > 0.5) {
                 const cargoColors = [0xffdd44, 0x8b4513, 0x333333];
-                const cargoMat = new THREE.MeshPhongMaterial({
+                const cargoMat = new THREE.MeshStandardMaterial({
                     color: cargoColors[Math.floor(Math.random() * cargoColors.length)]
                 });
                 const cargoGeo = new THREE.BoxGeometry(4, 2, 12);
@@ -1231,7 +1442,7 @@
             const group = new THREE.Group();
 
             // Body
-            const bodyMat = new THREE.MeshPhongMaterial({
+            const bodyMat = new THREE.MeshStandardMaterial({
                 color: 0xcc4444,
                 shininess: 40
             });
@@ -1249,7 +1460,7 @@
             group.add(cupola);
 
             // Windows
-            const windowMat = new THREE.MeshPhongMaterial({
+            const windowMat = new THREE.MeshStandardMaterial({
                 color: 0x88ccff,
                 transparent: true,
                 opacity: 0.7
@@ -1263,14 +1474,14 @@
             }
 
             // Rear platform
-            const platformMat = new THREE.MeshPhongMaterial({ color: 0x4a3728 });
+            const platformMat = new THREE.MeshStandardMaterial({ color: 0x4a3728 });
             const platformGeo = new THREE.BoxGeometry(5, 0.3, 2);
             const platform = new THREE.Mesh(platformGeo, platformMat);
             platform.position.set(0, 1.5, -7);
             group.add(platform);
 
             // Railings
-            const railMat = new THREE.MeshPhongMaterial({ color: 0x666666 });
+            const railMat = new THREE.MeshStandardMaterial({ color: 0x666666 });
             for (let side = -1; side <= 1; side += 2) {
                 const railGeo = new THREE.CylinderGeometry(0.1, 0.1, 2, 8);
                 const rail = new THREE.Mesh(railGeo, railMat);
@@ -1285,7 +1496,7 @@
         }
 
         function createTrainWheels(group, spacing) {
-            const wheelMat = new THREE.MeshPhongMaterial({
+            const wheelMat = new THREE.MeshStandardMaterial({
                 color: 0x222222,
                 shininess: 80
             });
@@ -1330,7 +1541,7 @@
 
             // Trunk
             const trunkGeo = new THREE.CylinderGeometry(0.5, 0.8, 5, 6);
-            const trunkMat = new THREE.MeshPhongMaterial({ color: 0x5d4037 });
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5d4037 });
             const trunk = new THREE.Mesh(trunkGeo, trunkMat);
             trunk.position.y = 2.5;
             trunk.castShadow = true;
@@ -1338,7 +1549,7 @@
 
             // Foliage
             const foliageGeo = new THREE.ConeGeometry(4, 8, 8);
-            const foliageMat = new THREE.MeshPhongMaterial({ color: 0x2e7d32 });
+            const foliageMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32 });
             const foliage = new THREE.Mesh(foliageGeo, foliageMat);
             foliage.position.y = 8;
             foliage.castShadow = true;
@@ -1371,7 +1582,7 @@
             const balloonGeo = new THREE.SphereGeometry(2.5, 16, 12);
             balloonGeo.scale(1, 1.3, 1);
 
-            const balloonMat = new THREE.MeshPhongMaterial({
+            const balloonMat = new THREE.MeshStandardMaterial({
                 color: color,
                 shininess: 100,
                 specular: 0x444444,
@@ -1462,14 +1673,14 @@
 
             // Base
             const baseGeo = new THREE.CylinderGeometry(2, 2.5, 1.5, 8);
-            const baseMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
+            const baseMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
             const base = new THREE.Mesh(baseGeo, baseMat);
             base.position.y = 1.25;
             group.add(base);
 
             // Turret
             const turretGeo = new THREE.SphereGeometry(1.5, 8, 6);
-            const turretMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+            const turretMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
             const turret = new THREE.Mesh(turretGeo, turretMat);
             turret.position.y = 2.5;
             group.add(turret);
@@ -1479,7 +1690,7 @@
             barrelGroup.position.y = 2.5;
 
             // Dual barrels
-            const barrelMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const barrelMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
             for (let i = -1; i <= 1; i += 2) {
                 const barrelGeo = new THREE.CylinderGeometry(0.15, 0.2, 4, 6);
                 const barrel = new THREE.Mesh(barrelGeo, barrelMat);
@@ -1497,7 +1708,7 @@
 
             // TALL WARNING POLE with red light (visible from far)
             const poleGeo = new THREE.CylinderGeometry(0.3, 0.3, 20, 6);
-            const poleMat = new THREE.MeshLambertMaterial({ color: 0x666666 });
+            const poleMat = new THREE.MeshStandardMaterial({ color: 0x666666 });
             const pole = new THREE.Mesh(poleGeo, poleMat);
             pole.position.set(0, 12, 0);
             group.add(pole);
@@ -2065,13 +2276,19 @@
                 gameState.yaw += Math.PI * deltaTime;
             }
 
-            // Update camera
-            camera.position.copy(gameState.position);
-            camera.rotation.copy(gameState.rotation);
+            // Update camera with smooth lerp for heavy aircraft feel
+            cameraTarget.position.copy(gameState.position);
+            cameraTarget.rotation.copy(gameState.rotation);
+            cameraTarget.lookX = gameState.lookX;
+            cameraTarget.lookY = gameState.lookY;
 
-            // Apply mouse look
-            camera.rotation.y += gameState.lookX;
-            camera.rotation.x += gameState.lookY;
+            // Smooth camera position
+            camera.position.lerp(cameraTarget.position, CAMERA_LERP_SPEED * deltaTime);
+
+            // Smooth camera rotation
+            camera.rotation.x = THREE.MathUtils.lerp(camera.rotation.x, cameraTarget.rotation.x + cameraTarget.lookY, CAMERA_LERP_SPEED * deltaTime);
+            camera.rotation.y = THREE.MathUtils.lerp(camera.rotation.y, cameraTarget.rotation.y + cameraTarget.lookX, CAMERA_LERP_SPEED * deltaTime);
+            camera.rotation.z = THREE.MathUtils.lerp(camera.rotation.z, cameraTarget.rotation.z, CAMERA_LERP_SPEED * deltaTime);
 
             // Update engine sound
             audioManager.updateEngine(gameState.speed);
@@ -2143,6 +2360,9 @@
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
                 renderer.setSize(window.innerWidth, window.innerHeight);
+                if (composer) {
+                    composer.setSize(window.innerWidth, window.innerHeight);
+                }
             });
         }
 
@@ -2227,13 +2447,26 @@
                 updateHUD();
             }
 
-            renderer.render(scene, camera);
+            // Update film grain time for animation
+            if (filmPass) {
+                filmPass.uniforms['time'].value = performance.now() * 0.001;
+            }
+
+            // Use post-processing composer instead of direct render
+            if (composer) {
+                composer.render();
+            } else {
+                renderer.render(scene, camera);
+            }
         }
 
         // ==================== INITIALIZATION ====================
         function init() {
+            // Setup post-processing first
+            setupPostProcessing();
+
             setupLighting();
-            createSky();
+            createSky();  // Also sets up FogExp2
             createClouds();
             createTerrain();
 
@@ -2254,9 +2487,6 @@
                 const [x, z] = cannonPositions[i];
                 createAACannon(x, z);
             }
-
-            // Setup fog
-            scene.fog = new THREE.Fog(0x88bbff, 100, 600);
 
             setupInput();
             animate();
