@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Cube</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-family: system-ui, sans-serif;
+      overflow: hidden;
+    }
+
+    .instructions {
+      color: #fff;
+      margin-bottom: 40px;
+      text-align: center;
+      opacity: 0.8;
+    }
+
+    .instructions p {
+      margin: 5px 0;
+    }
+
+    .scene {
+      width: 200px;
+      height: 200px;
+      perspective: 800px;
+    }
+
+    .cube {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.1s ease-out;
+    }
+
+    .face {
+      position: absolute;
+      width: 200px;
+      height: 200px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 24px;
+      font-weight: bold;
+      color: white;
+      backface-visibility: visible;
+    }
+
+    .front  {
+      background: rgba(255, 0, 0, 0.7);
+      transform: translateZ(100px);
+    }
+    .back   {
+      background: rgba(0, 255, 0, 0.7);
+      transform: rotateY(180deg) translateZ(100px);
+    }
+    .right  {
+      background: rgba(0, 0, 255, 0.7);
+      transform: rotateY(90deg) translateZ(100px);
+    }
+    .left   {
+      background: rgba(255, 255, 0, 0.7);
+      transform: rotateY(-90deg) translateZ(100px);
+    }
+    .top    {
+      background: rgba(255, 0, 255, 0.7);
+      transform: rotateX(90deg) translateZ(100px);
+    }
+    .bottom {
+      background: rgba(0, 255, 255, 0.7);
+      transform: rotateX(-90deg) translateZ(100px);
+    }
+
+    .position-info {
+      color: #fff;
+      margin-top: 40px;
+      font-family: monospace;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+  <div class="instructions">
+    <p><strong>Keyboard:</strong> Arrow keys to rotate, W/S to move forward/back, A/D to move left/right, Q/E to move up/down</p>
+    <p><strong>Mouse:</strong> Click and drag to rotate</p>
+  </div>
+
+  <div class="scene">
+    <div class="cube" id="cube">
+      <div class="face front">Front</div>
+      <div class="face back">Back</div>
+      <div class="face right">Right</div>
+      <div class="face left">Left</div>
+      <div class="face top">Top</div>
+      <div class="face bottom">Bottom</div>
+    </div>
+  </div>
+
+  <div class="position-info" id="info">
+    X: 0 | Y: 0 | Z: 0 | RotX: 0° | RotY: 0°
+  </div>
+
+  <script>
+    const cube = document.getElementById('cube');
+    const info = document.getElementById('info');
+
+    // Position and rotation state
+    let rotateX = -20;
+    let rotateY = -30;
+    let translateX = 0;
+    let translateY = 0;
+    let translateZ = 0;
+
+    // Mouse drag state
+    let isDragging = false;
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+
+    function updateCube() {
+      cube.style.transform = `
+        translateX(${translateX}px)
+        translateY(${translateY}px)
+        translateZ(${translateZ}px)
+        rotateX(${rotateX}deg)
+        rotateY(${rotateY}deg)
+      `;
+
+      info.textContent = `X: ${translateX} | Y: ${translateY} | Z: ${translateZ} | RotX: ${Math.round(rotateX)}° | RotY: ${Math.round(rotateY)}°`;
+    }
+
+    // Keyboard controls
+    document.addEventListener('keydown', (e) => {
+      const step = 20;
+      const rotStep = 10;
+
+      switch(e.key) {
+        // Rotation
+        case 'ArrowUp':
+          rotateX += rotStep;
+          break;
+        case 'ArrowDown':
+          rotateX -= rotStep;
+          break;
+        case 'ArrowLeft':
+          rotateY -= rotStep;
+          break;
+        case 'ArrowRight':
+          rotateY += rotStep;
+          break;
+        // Translation
+        case 'w':
+        case 'W':
+          translateZ += step;
+          break;
+        case 's':
+        case 'S':
+          translateZ -= step;
+          break;
+        case 'a':
+        case 'A':
+          translateX -= step;
+          break;
+        case 'd':
+        case 'D':
+          translateX += step;
+          break;
+        case 'q':
+        case 'Q':
+          translateY -= step;
+          break;
+        case 'e':
+        case 'E':
+          translateY += step;
+          break;
+      }
+
+      updateCube();
+    });
+
+    // Mouse drag controls
+    cube.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+      cube.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+
+      const deltaX = e.clientX - lastMouseX;
+      const deltaY = e.clientY - lastMouseY;
+
+      rotateY += deltaX * 0.5;
+      rotateX -= deltaY * 0.5;
+
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+
+      updateCube();
+    });
+
+    document.addEventListener('mouseup', () => {
+      isDragging = false;
+      cube.style.cursor = 'grab';
+    });
+
+    // Touch support
+    cube.addEventListener('touchstart', (e) => {
+      isDragging = true;
+      lastMouseX = e.touches[0].clientX;
+      lastMouseY = e.touches[0].clientY;
+    });
+
+    document.addEventListener('touchmove', (e) => {
+      if (!isDragging) return;
+
+      const deltaX = e.touches[0].clientX - lastMouseX;
+      const deltaY = e.touches[0].clientY - lastMouseY;
+
+      rotateY += deltaX * 0.5;
+      rotateX -= deltaY * 0.5;
+
+      lastMouseX = e.touches[0].clientX;
+      lastMouseY = e.touches[0].clientY;
+
+      updateCube();
+    });
+
+    document.addEventListener('touchend', () => {
+      isDragging = false;
+    });
+
+    // Set initial cursor and position
+    cube.style.cursor = 'grab';
+    updateCube();
+  </script>
+</body>
+</html>
