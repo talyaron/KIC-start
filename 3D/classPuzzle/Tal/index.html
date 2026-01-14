@@ -418,14 +418,14 @@
 
             // AA Cannons (balanced for fun)
             AA_CANNON_COUNT: 5,
-            AA_FIRE_RATE: 3.0,           // Slower fire rate
-            AA_BASE_ACCURACY: 0.08,      // Less accurate overall
-            AA_DODGE_ACCURACY: 0.35,     // Much less accurate when dodging
-            AA_RANGE: 200,               // Shorter range
-            AA_TRACKING_SPEED: 0.6,      // Slower tracking
-            AA_BULLET_SPEED: 150,        // Slower bullets (easier to dodge)
+            AA_FIRE_RATE: 3.5,           // Slower fire rate
+            AA_BASE_SPREAD: 0.15,        // Base spread (inaccurate)
+            AA_MAX_SPREAD: 0.5,          // Max spread at long range
+            AA_RANGE: 250,               // Detection range
+            AA_TRACKING_SPEED: 0.5,      // Slower tracking
+            AA_BULLET_SPEED: 120,        // Slower bullets (easier to dodge)
             AA_DAMAGE: 8,                // Less damage per hit
-            AA_PREDICTION_TIME: 0.8,     // Less prediction
+            AA_PREDICTION_TIME: 0.5,     // Less prediction
             AA_START_DELAY: 5,           // Seconds before cannons start firing
 
             // Environment
@@ -1445,25 +1445,40 @@
         function createAACannon(x, z) {
             const group = new THREE.Group();
 
-            // Simple base
+            // VISIBLE WARNING: Big red/orange platform
+            const platformGeo = new THREE.CylinderGeometry(5, 6, 0.5, 8);
+            const platformMat = new THREE.MeshBasicMaterial({ color: 0xaa4400 });
+            const platform = new THREE.Mesh(platformGeo, platformMat);
+            platform.position.y = 0.25;
+            group.add(platform);
+
+            // Danger stripes ring
+            const ringGeo = new THREE.TorusGeometry(5.5, 0.3, 8, 16);
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.rotation.x = Math.PI / 2;
+            ring.position.y = 0.5;
+            group.add(ring);
+
+            // Base
             const baseGeo = new THREE.CylinderGeometry(2, 2.5, 1.5, 8);
             const baseMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
             const base = new THREE.Mesh(baseGeo, baseMat);
-            base.position.y = 0.75;
+            base.position.y = 1.25;
             group.add(base);
 
             // Turret
             const turretGeo = new THREE.SphereGeometry(1.5, 8, 6);
             const turretMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
             const turret = new THREE.Mesh(turretGeo, turretMat);
-            turret.position.y = 2;
+            turret.position.y = 2.5;
             group.add(turret);
 
             // Barrel group (for rotation)
             const barrelGroup = new THREE.Group();
-            barrelGroup.position.y = 2;
+            barrelGroup.position.y = 2.5;
 
-            // Dual barrels (simpler)
+            // Dual barrels
             const barrelMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
             for (let i = -1; i <= 1; i += 2) {
                 const barrelGeo = new THREE.CylinderGeometry(0.15, 0.2, 4, 6);
@@ -1473,12 +1488,31 @@
                 barrelGroup.add(barrel);
             }
 
-            // Single muzzle flash light
+            // Muzzle flash light
             const muzzleLight = new THREE.PointLight(0xff6600, 0, 15);
             muzzleLight.position.set(0, 0, 4.5);
             barrelGroup.add(muzzleLight);
 
             group.add(barrelGroup);
+
+            // TALL WARNING POLE with red light (visible from far)
+            const poleGeo = new THREE.CylinderGeometry(0.3, 0.3, 20, 6);
+            const poleMat = new THREE.MeshLambertMaterial({ color: 0x666666 });
+            const pole = new THREE.Mesh(poleGeo, poleMat);
+            pole.position.set(0, 12, 0);
+            group.add(pole);
+
+            // Red warning beacon on top
+            const beaconGeo = new THREE.SphereGeometry(1.5, 8, 8);
+            const beaconMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const beacon = new THREE.Mesh(beaconGeo, beaconMat);
+            beacon.position.set(0, 23, 0);
+            group.add(beacon);
+
+            // Red light on beacon (always on)
+            const beaconLight = new THREE.PointLight(0xff0000, 1, 50);
+            beaconLight.position.set(0, 23, 0);
+            group.add(beaconLight);
 
             // Position
             const groundY = getTerrainHeight(x, z);
@@ -1487,10 +1521,11 @@
             group.userData = {
                 barrelGroup: barrelGroup,
                 muzzleLight: muzzleLight,
+                beacon: beacon,
                 lastFired: 0,
-                fireRate: CONFIG.AA_FIRE_RATE * (0.7 + Math.random() * 0.3),
+                fireRate: CONFIG.AA_FIRE_RATE * (0.8 + Math.random() * 0.4),
                 burstCount: 0,
-                burstMax: 2  // Only 2 shots per burst
+                burstMax: 2
             };
 
             scene.add(group);
@@ -1572,25 +1607,27 @@
         function fireAACannon(cannon, targetPos) {
             const barrelGroup = cannon.userData.barrelGroup;
 
-            // Calculate accuracy based on player's flight pattern
-            // Flying straight = very accurate, dodging = less accurate
-            const dodgeFactor = Math.min(1, gameState.directionChangeAmount / 2);
-            const accuracy = CONFIG.AA_BASE_ACCURACY + (CONFIG.AA_DODGE_ACCURACY - CONFIG.AA_BASE_ACCURACY) * dodgeFactor;
+            // Calculate spread based on DISTANCE - farther = less accurate
+            const distance = cannon.position.distanceTo(gameState.position);
+            const distanceFactor = Math.min(1, distance / CONFIG.AA_RANGE);  // 0 at close, 1 at max range
 
-            // Direction toward predicted position with accuracy spread
+            // More spread when farther away
+            const spread = CONFIG.AA_BASE_SPREAD + (CONFIG.AA_MAX_SPREAD - CONFIG.AA_BASE_SPREAD) * distanceFactor;
+
+            // Direction toward predicted position with spread
             const spawnPos = cannon.position.clone();
             spawnPos.y += 2.5;
 
             const direction = new THREE.Vector3().subVectors(targetPos, spawnPos).normalize();
 
-            // Add spread based on accuracy (less spread when player flies straight)
-            direction.x += (Math.random() - 0.5) * accuracy;
-            direction.y += (Math.random() - 0.5) * accuracy;
-            direction.z += (Math.random() - 0.5) * accuracy * 0.5;
+            // Add BIG spread - cannons are inaccurate!
+            direction.x += (Math.random() - 0.5) * spread;
+            direction.y += (Math.random() - 0.5) * spread;
+            direction.z += (Math.random() - 0.5) * spread;
             direction.normalize();
 
             // Move spawn point to barrel end
-            spawnPos.add(direction.clone().multiplyScalar(6));
+            spawnPos.add(direction.clone().multiplyScalar(4));
 
             createBullet(spawnPos, direction, 'enemy');
             createAATracer(spawnPos.clone(), direction.clone());
