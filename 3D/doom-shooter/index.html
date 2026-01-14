@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CYBER DUNGEON 3D</title>
+</head>
+
+<body>
+  <div id="damage-flash"></div>
+
+  <div id="ui-layer">
+    <div id="hud">
+      <div class="stat-box">LEVEL: <span id="level-val">1</span></div>
+      <div class="stat-box">HEALTH: <span id="health">100</span>%</div>
+      <div class="stat-box">SCORE: <span id="score">0</span></div>
+      <div class="stat-box">KILLS: <span id="kills">0</span></div>
+    </div>
+    <div id="crosshair">
+      <div id="hitmarker"></div>
+    </div>
+  </div>
+
+  <div id="level-up-overlay">Level Up!</div>
+
+  <div id="instructions">
+    <h1>CYBER DUNGEON</h1>
+    <p>CLICK TO BEGIN</p>
+    <p>(W, A, S, D = MOVE, SPACE = JUMP, CLICK = SHOOT)</p>
+  </div>
+
+  <div id="game-over">
+    <h2>YOU DIED</h2>
+    <p>FINAL SCORE: <span id="final-score">0</span></p>
+    <p>CLICK TO RESTART</p>
+  </div>
+
+  <div id="debug-log">System: Ready</div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>
