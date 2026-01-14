@@ -409,7 +409,7 @@
             BULLET_LIFETIME: 2,
 
             // Balloons
-            BALLOON_COUNT: 35,
+            BALLOON_COUNT: 25,
             BALLOON_SPAWN_RADIUS: 300,
             BALLOON_MIN_HEIGHT: 40,
             BALLOON_MAX_HEIGHT: 180,
@@ -417,8 +417,8 @@
             BALLOON_FLOAT_AMPLITUDE: 3,
 
             // AA Cannons
-            AA_CANNON_COUNT: 10,
-            AA_FIRE_RATE: 1.2,
+            AA_CANNON_COUNT: 6,
+            AA_FIRE_RATE: 1.4,
             AA_BASE_ACCURACY: 0.02,      // Very accurate when player flies straight
             AA_DODGE_ACCURACY: 0.25,     // Less accurate when player is dodging
             AA_RANGE: 350,
@@ -429,8 +429,8 @@
 
             // Environment
             WORLD_SIZE: 800,
-            CLOUD_COUNT: 60,
-            TREE_COUNT: 150,
+            CLOUD_COUNT: 30,
+            TREE_COUNT: 80,
 
             // Audio
             MASTER_VOLUME: 0.6
@@ -715,12 +715,9 @@
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
         const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);  // Full resolution
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));  // Cap at 2 for performance
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        renderer.outputColorSpace = THREE.SRGBColorSpace;
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.2;
 
         const clock = new THREE.Clock();
         const audioManager = new AudioManager();
@@ -741,8 +738,8 @@
             const sunLight = new THREE.DirectionalLight(0xffffee, 1.2);
             sunLight.position.set(100, 200, 50);
             sunLight.castShadow = true;
-            sunLight.shadow.mapSize.width = 4096;
-            sunLight.shadow.mapSize.height = 4096;
+            sunLight.shadow.mapSize.width = 1024;
+            sunLight.shadow.mapSize.height = 1024;
             sunLight.shadow.camera.near = 10;
             sunLight.shadow.camera.far = 500;
             sunLight.shadow.camera.left = -200;
@@ -813,22 +810,21 @@
 
         function createSingleCloud() {
             const group = new THREE.Group();
-            const material = new THREE.MeshPhongMaterial({
+            const material = new THREE.MeshLambertMaterial({
                 color: 0xffffff,
                 transparent: true,
-                opacity: 0.9,
-                flatShading: true
+                opacity: 0.85
             });
 
-            const sphereCount = 5 + Math.floor(Math.random() * 5);
+            const sphereCount = 3 + Math.floor(Math.random() * 3);
             for (let i = 0; i < sphereCount; i++) {
-                const radius = 4 + Math.random() * 8;
-                const geo = new THREE.SphereGeometry(radius, 8, 6);
+                const radius = 5 + Math.random() * 6;
+                const geo = new THREE.SphereGeometry(radius, 6, 4);
                 const sphere = new THREE.Mesh(geo, material);
                 sphere.position.set(
-                    (Math.random() - 0.5) * 20,
-                    (Math.random() - 0.5) * 5,
-                    (Math.random() - 0.5) * 15
+                    (Math.random() - 0.5) * 15,
+                    (Math.random() - 0.5) * 4,
+                    (Math.random() - 0.5) * 12
                 );
                 group.add(sphere);
             }
@@ -844,7 +840,7 @@
 
         function createTerrain() {
             // Ground with higher resolution
-            const groundGeo = new THREE.PlaneGeometry(CONFIG.WORLD_SIZE * 2, CONFIG.WORLD_SIZE * 2, 150, 150);
+            const groundGeo = new THREE.PlaneGeometry(CONFIG.WORLD_SIZE * 2, CONFIG.WORLD_SIZE * 2, 60, 60);
             const vertices = groundGeo.attributes.position.array;
 
             // Add height variation
@@ -1448,85 +1444,38 @@
         function createAACannon(x, z) {
             const group = new THREE.Group();
 
-            // Sandbag base
-            const sandbagMat = new THREE.MeshPhongMaterial({ color: 0x8b7355 });
-            for (let ring = 0; ring < 2; ring++) {
-                for (let i = 0; i < 8; i++) {
-                    const angle = (i / 8) * Math.PI * 2;
-                    const sandbagGeo = new THREE.BoxGeometry(1.5, 0.8, 1);
-                    const sandbag = new THREE.Mesh(sandbagGeo, sandbagMat);
-                    sandbag.position.set(
-                        Math.cos(angle) * 2.5,
-                        0.4 + ring * 0.7,
-                        Math.sin(angle) * 2.5
-                    );
-                    sandbag.rotation.y = angle;
-                    sandbag.castShadow = true;
-                    group.add(sandbag);
-                }
-            }
-
-            // Metal base plate
-            const baseGeo = new THREE.CylinderGeometry(1.8, 2, 0.5, 12);
-            const baseMat = new THREE.MeshPhongMaterial({ color: 0x3a3a3a, shininess: 60 });
+            // Simple base
+            const baseGeo = new THREE.CylinderGeometry(2, 2.5, 1.5, 8);
+            const baseMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
             const base = new THREE.Mesh(baseGeo, baseMat);
-            base.position.y = 1.8;
-            base.castShadow = true;
+            base.position.y = 0.75;
             group.add(base);
 
-            // Rotating turret base
-            const turretBaseMat = new THREE.MeshPhongMaterial({ color: 0x2a2a2a, shininess: 40 });
-            const turretBaseGeo = new THREE.CylinderGeometry(1.2, 1.4, 0.8, 10);
-            const turretBase = new THREE.Mesh(turretBaseGeo, turretBaseMat);
-            turretBase.position.y = 2.3;
-            group.add(turretBase);
+            // Turret
+            const turretGeo = new THREE.SphereGeometry(1.5, 8, 6);
+            const turretMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+            const turret = new THREE.Mesh(turretGeo, turretMat);
+            turret.position.y = 2;
+            group.add(turret);
 
             // Barrel group (for rotation)
             const barrelGroup = new THREE.Group();
-            barrelGroup.position.y = 2.5;
+            barrelGroup.position.y = 2;
 
-            // Gun housing
-            const housingMat = new THREE.MeshPhongMaterial({ color: 0x4a4a4a, shininess: 50 });
-            const housingGeo = new THREE.BoxGeometry(1.5, 1.2, 2.5);
-            const housing = new THREE.Mesh(housingGeo, housingMat);
-            housing.position.z = 0.5;
-            housing.castShadow = true;
-            barrelGroup.add(housing);
-
-            // Quad barrels for more firepower look
-            const barrelMat = new THREE.MeshPhongMaterial({ color: 0x1a1a1a, shininess: 80 });
-            const barrelPositions = [[-0.35, 0.25], [0.35, 0.25], [-0.35, -0.25], [0.35, -0.25]];
-            for (const [bx, by] of barrelPositions) {
-                const barrelGeo = new THREE.CylinderGeometry(0.12, 0.15, 5, 8);
+            // Dual barrels (simpler)
+            const barrelMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            for (let i = -1; i <= 1; i += 2) {
+                const barrelGeo = new THREE.CylinderGeometry(0.15, 0.2, 4, 6);
                 const barrel = new THREE.Mesh(barrelGeo, barrelMat);
                 barrel.rotation.x = Math.PI / 2;
-                barrel.position.set(bx, by, 3.5);
-                barrel.castShadow = true;
+                barrel.position.set(i * 0.5, 0, 2);
                 barrelGroup.add(barrel);
-
-                // Barrel tip (flash hider)
-                const tipGeo = new THREE.CylinderGeometry(0.18, 0.12, 0.4, 8);
-                const tip = new THREE.Mesh(tipGeo, barrelMat);
-                tip.rotation.x = Math.PI / 2;
-                tip.position.set(bx, by, 6.1);
-                barrelGroup.add(tip);
             }
 
-            // Muzzle flash lights (multiple for quad barrels)
-            const muzzleLights = [];
-            for (const [bx, by] of barrelPositions) {
-                const muzzleLight = new THREE.PointLight(0xff6600, 0, 30);
-                muzzleLight.position.set(bx, by, 6.5);
-                barrelGroup.add(muzzleLight);
-                muzzleLights.push(muzzleLight);
-            }
-
-            // Sight/optics
-            const sightMat = new THREE.MeshPhongMaterial({ color: 0x222222 });
-            const sightGeo = new THREE.BoxGeometry(0.3, 0.5, 1);
-            const sight = new THREE.Mesh(sightGeo, sightMat);
-            sight.position.set(0, 0.8, 1);
-            barrelGroup.add(sight);
+            // Single muzzle flash light
+            const muzzleLight = new THREE.PointLight(0xff6600, 0, 15);
+            muzzleLight.position.set(0, 0, 4.5);
+            barrelGroup.add(muzzleLight);
 
             group.add(barrelGroup);
 
@@ -1536,11 +1485,11 @@
 
             group.userData = {
                 barrelGroup: barrelGroup,
-                muzzleLights: muzzleLights,
+                muzzleLight: muzzleLight,
                 lastFired: 0,
                 fireRate: CONFIG.AA_FIRE_RATE * (0.7 + Math.random() * 0.3),
                 burstCount: 0,
-                burstMax: 3 + Math.floor(Math.random() * 3)  // Fire in bursts
+                burstMax: 3 + Math.floor(Math.random() * 2)
             };
 
             scene.add(group);
@@ -1640,27 +1589,21 @@
             createBullet(spawnPos, direction, 'enemy');
             createAATracer(spawnPos.clone(), direction.clone());
 
-            // Muzzle flash on all barrels
-            for (const light of cannon.userData.muzzleLights) {
-                light.intensity = 5;
-            }
+            // Muzzle flash
+            cannon.userData.muzzleLight.intensity = 3;
             setTimeout(() => {
-                for (const light of cannon.userData.muzzleLights) {
-                    light.intensity = 0;
-                }
+                cannon.userData.muzzleLight.intensity = 0;
             }, 50);
 
             audioManager.playAAFire();
         }
 
-        // Special bright tracer for AA fire
+        // Bright tracer for AA fire (optimized - no point lights)
         function createAATracer(position, direction) {
-            const tracerGroup = new THREE.Group();
-
-            // Main bright tracer line
+            // Simple bright line tracer
             const points = [];
-            for (let i = 0; i < 25; i++) {
-                points.push(position.clone().add(direction.clone().multiplyScalar(-i * 0.8)));
+            for (let i = 0; i < 15; i++) {
+                points.push(position.clone().add(direction.clone().multiplyScalar(-i * 1.2)));
             }
 
             const geometry = new THREE.BufferGeometry().setFromPoints(points);
@@ -1671,37 +1614,18 @@
             });
 
             const line = new THREE.Line(geometry, material);
-            tracerGroup.add(line);
 
-            // Glowing head
-            const glowGeo = new THREE.SphereGeometry(0.4, 8, 8);
-            const glowMat = new THREE.MeshBasicMaterial({
-                color: 0xffaa00,
-                transparent: true,
-                opacity: 0.9
-            });
-            const glow = new THREE.Mesh(glowGeo, glowMat);
-            glow.position.copy(position);
-            tracerGroup.add(glow);
-
-            // Point light on tracer head
-            const tracerLight = new THREE.PointLight(0xff6600, 2, 15);
-            tracerLight.position.copy(position);
-            tracerGroup.add(tracerLight);
-
-            tracerGroup.userData = {
+            line.userData = {
                 direction: direction.clone().normalize(),
                 speed: CONFIG.AA_BULLET_SPEED,
-                lifetime: 2.5,
-                age: 0,
-                glow: glow,
-                light: tracerLight
+                lifetime: 2.0,
+                age: 0
             };
 
-            scene.add(tracerGroup);
-            tracers.push(tracerGroup);
+            scene.add(line);
+            tracers.push(line);
 
-            return tracerGroup;
+            return line;
         }
 
         // ==================== BULLETS ====================
@@ -1780,55 +1704,23 @@
             for (let i = tracers.length - 1; i >= 0; i--) {
                 const tracer = tracers[i];
                 const data = tracer.userData;
+
+                // Move tracer
                 const movement = data.direction.clone().multiplyScalar(data.speed * deltaTime);
-
-                // Check if it's a simple Line tracer or a Group (AA tracer)
-                if (tracer.isLine) {
-                    // Simple line tracer (player bullets)
-                    const positions = tracer.geometry.attributes.position.array;
-                    for (let j = 0; j < positions.length; j += 3) {
-                        positions[j] += movement.x;
-                        positions[j + 1] += movement.y;
-                        positions[j + 2] += movement.z;
-                    }
-                    tracer.geometry.attributes.position.needsUpdate = true;
-                    tracer.material.opacity = 1 - (data.age / data.lifetime);
-                } else if (tracer.isGroup) {
-                    // AA tracer group with glow and light
-                    tracer.position.add(movement);
-
-                    // Update child line geometry
-                    tracer.children.forEach(child => {
-                        if (child.isLine && child.geometry) {
-                            const positions = child.geometry.attributes.position.array;
-                            for (let j = 0; j < positions.length; j += 3) {
-                                positions[j] += movement.x;
-                                positions[j + 1] += movement.y;
-                                positions[j + 2] += movement.z;
-                            }
-                            child.geometry.attributes.position.needsUpdate = true;
-                            if (child.material) {
-                                child.material.opacity = 1 - (data.age / data.lifetime);
-                            }
-                        }
-                        if (child.isMesh && child.position) {
-                            child.position.add(movement);
-                        }
-                        if (child.isLight && child.position) {
-                            child.position.add(movement);
-                            child.intensity = Math.max(0, 2 * (1 - data.age / data.lifetime));
-                        }
-                    });
-
-                    // Update glow opacity
-                    if (data.glow && data.glow.material) {
-                        data.glow.material.opacity = 0.9 * (1 - data.age / data.lifetime);
-                    }
+                const positions = tracer.geometry.attributes.position.array;
+                for (let j = 0; j < positions.length; j += 3) {
+                    positions[j] += movement.x;
+                    positions[j + 1] += movement.y;
+                    positions[j + 2] += movement.z;
                 }
+                tracer.geometry.attributes.position.needsUpdate = true;
 
+                // Fade out
                 data.age += deltaTime;
+                tracer.material.opacity = 1 - (data.age / data.lifetime);
 
-                if (data.age > data.lifetime || tracer.position.y < -10) {
+                // Remove when done
+                if (data.age > data.lifetime) {
                     scene.remove(tracer);
                     tracers.splice(i, 1);
                 }
