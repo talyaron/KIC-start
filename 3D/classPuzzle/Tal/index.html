@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="screen-orientation" content="landscape">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <title>Sky Fighter - Balloon Hunter</title>
     <style>
         * {
@@ -303,6 +306,174 @@
             z-index: 102;
             pointer-events: none;
         }
+
+        /* Mobile Controls */
+        #mobile-fire-btn {
+            display: none;
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 0, 0, 0.8) 0%, rgba(200, 0, 0, 0.9) 100%);
+            border: 4px solid rgba(255, 100, 100, 0.8);
+            color: #fff;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 0 0 10px #000;
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.5), inset 0 0 20px rgba(255, 255, 255, 0.2);
+            z-index: 150;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        #mobile-fire-btn:active {
+            transform: scale(0.9);
+            background: radial-gradient(circle, rgba(255, 100, 100, 1) 0%, rgba(255, 50, 50, 1) 100%);
+            box-shadow: 0 0 50px rgba(255, 0, 0, 0.8), inset 0 0 30px rgba(255, 255, 255, 0.4);
+        }
+
+        /* Rotate device overlay */
+        #rotate-device {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 500;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+        }
+
+        #rotate-device .phone-icon {
+            font-size: 80px;
+            animation: rotate-phone 1.5s ease-in-out infinite;
+            margin-bottom: 20px;
+        }
+
+        #rotate-device p {
+            font-size: 24px;
+            text-align: center;
+            padding: 0 20px;
+        }
+
+        @keyframes rotate-phone {
+            0%, 100% { transform: rotate(0deg); }
+            50% { transform: rotate(90deg); }
+        }
+
+        /* Mobile instructions */
+        .mobile-instructions {
+            display: none;
+        }
+
+        .desktop-instructions {
+            display: block;
+        }
+
+        /* Tilt indicator */
+        #tilt-indicator {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 10px;
+            color: #0ff;
+            font-size: 12px;
+            z-index: 101;
+            pointer-events: none;
+        }
+
+        /* Mobile-specific styles */
+        @media (max-width: 900px), (max-height: 500px) {
+            .mobile-instructions {
+                display: block !important;
+            }
+
+            .desktop-instructions {
+                display: none !important;
+            }
+
+            #mobile-fire-btn {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+
+            #cockpit-overlay {
+                border-width: 15px;
+            }
+
+            #cockpit-frame-top {
+                height: 15px;
+            }
+
+            #cockpit-frame-bottom {
+                height: 60px;
+            }
+
+            .hud-panel {
+                padding: 8px;
+                font-size: 12px;
+            }
+
+            #score-value {
+                font-size: 24px;
+            }
+
+            #health-bar {
+                width: 120px;
+                height: 15px;
+            }
+
+            #start-screen h1 {
+                font-size: 36px;
+            }
+
+            #start-screen h2 {
+                font-size: 20px;
+            }
+
+            #start-screen .instructions {
+                padding: 15px;
+                margin: 0 10px 20px 10px;
+            }
+
+            #start-screen .instructions p {
+                font-size: 14px;
+                margin: 8px 0;
+            }
+
+            #start-screen .click-to-start {
+                font-size: 20px;
+            }
+
+            #game-over h1 {
+                font-size: 48px;
+            }
+
+            #game-over .final-score {
+                font-size: 32px;
+            }
+        }
+
+        /* Portrait mode warning for mobile */
+        @media (max-width: 900px) and (orientation: portrait) {
+            #rotate-device {
+                display: flex !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -359,14 +530,21 @@
     <div id="start-screen">
         <h1>SKY FIGHTER</h1>
         <h2>Balloon Hunter</h2>
-        <div class="instructions">
+        <div class="instructions desktop-instructions">
             <p><span>W/S</span> or <span>Up/Down</span> - Pitch (nose up/down)</p>
             <p><span>A/D</span> or <span>Left/Right</span> - Roll (bank left/right)</p>
             <p><span>Mouse</span> - Look around cockpit</p>
             <p><span>Click</span> or <span>Space</span> - Shoot</p>
             <p><span>ESC</span> - Pause</p>
         </div>
-        <div class="click-to-start">CLICK TO START</div>
+        <div class="instructions mobile-instructions">
+            <p><span>Tilt Forward/Back</span> - Pitch (nose up/down)</p>
+            <p><span>Tilt Left/Right</span> - Roll (bank left/right)</p>
+            <p><span>FIRE Button</span> - Shoot</p>
+            <p>Hold device horizontally in landscape mode</p>
+        </div>
+        <div class="click-to-start desktop-instructions">CLICK TO START</div>
+        <div class="click-to-start mobile-instructions">TAP TO START</div>
     </div>
 
     <!-- Game Over Screen -->
@@ -375,6 +553,18 @@
         <div class="final-score">Score: <span id="final-score">0</span></div>
         <div class="restart">Click to restart</div>
     </div>
+
+    <!-- Mobile Fire Button -->
+    <button id="mobile-fire-btn">FIRE</button>
+
+    <!-- Rotate Device Overlay -->
+    <div id="rotate-device">
+        <div class="phone-icon">📱</div>
+        <p>Please rotate your device to landscape mode</p>
+    </div>
+
+    <!-- Tilt Indicator (for debugging, can be hidden) -->
+    <div id="tilt-indicator"></div>
 
     <script type="importmap">
     {
@@ -501,7 +691,27 @@
             TREE_COUNT: 80,
 
             // Audio
-            MASTER_VOLUME: 0.6
+            MASTER_VOLUME: 0.6,
+
+            // Mobile Controls
+            MOBILE_TILT_SENSITIVITY: 1.8,
+            MOBILE_TILT_DEADZONE: 5,      // degrees
+            MOBILE_MAX_TILT: 45           // degrees
+        };
+
+        // ==================== MOBILE DETECTION & STATE ====================
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+                        || (navigator.maxTouchPoints > 0 && window.innerWidth < 1024);
+
+        const mobileState = {
+            hasPermission: false,
+            tiltX: 0,        // Left/Right tilt (roll)
+            tiltY: 0,        // Forward/Back tilt (pitch)
+            baselineAlpha: null,
+            baselineBeta: null,
+            baselineGamma: null,
+            calibrated: false,
+            firePressed: false
         };
 
         // ==================== AUDIO MANAGER ====================
@@ -2225,21 +2435,35 @@
         // ==================== PLAYER MOVEMENT ====================
         function updatePlayer(deltaTime) {
             // Pitch control
-            if (keys.w || keys.ArrowUp) {
-                gameState.pitch -= CONFIG.PITCH_SPEED * deltaTime;
-            }
-            if (keys.s || keys.ArrowDown) {
-                gameState.pitch += CONFIG.PITCH_SPEED * deltaTime;
+            if (isMobile && mobileState.hasPermission) {
+                // Mobile tilt controls
+                // tiltY > 0 means tilted forward (nose down), tiltY < 0 means tilted back (nose up)
+                gameState.pitch += mobileState.tiltY * CONFIG.MOBILE_TILT_SENSITIVITY * deltaTime;
+            } else {
+                // Keyboard controls
+                if (keys.w || keys.ArrowUp) {
+                    gameState.pitch -= CONFIG.PITCH_SPEED * deltaTime;
+                }
+                if (keys.s || keys.ArrowDown) {
+                    gameState.pitch += CONFIG.PITCH_SPEED * deltaTime;
+                }
             }
             gameState.pitch = THREE.MathUtils.clamp(gameState.pitch, -Math.PI / 3, Math.PI / 3);
             gameState.pitch *= 0.98; // Damping
 
             // Roll control
-            if (keys.a || keys.ArrowLeft) {
-                gameState.roll += CONFIG.ROLL_SPEED * deltaTime;
-            }
-            if (keys.d || keys.ArrowRight) {
-                gameState.roll -= CONFIG.ROLL_SPEED * deltaTime;
+            if (isMobile && mobileState.hasPermission) {
+                // Mobile tilt controls
+                // tiltX > 0 means tilted right (roll right), tiltX < 0 means tilted left (roll left)
+                gameState.roll -= mobileState.tiltX * CONFIG.MOBILE_TILT_SENSITIVITY * deltaTime;
+            } else {
+                // Keyboard controls
+                if (keys.a || keys.ArrowLeft) {
+                    gameState.roll += CONFIG.ROLL_SPEED * deltaTime;
+                }
+                if (keys.d || keys.ArrowRight) {
+                    gameState.roll -= CONFIG.ROLL_SPEED * deltaTime;
+                }
             }
             gameState.roll = THREE.MathUtils.clamp(gameState.roll, -Math.PI / 2, Math.PI / 2);
             gameState.roll *= 0.96; // Damping
@@ -2364,13 +2588,135 @@
                     composer.setSize(window.innerWidth, window.innerHeight);
                 }
             });
+
+            // Mobile-specific input handlers
+            if (isMobile) {
+                setupMobileInput();
+            }
+        }
+
+        // ==================== MOBILE INPUT ====================
+        function setupMobileInput() {
+            const fireBtn = document.getElementById('mobile-fire-btn');
+
+            // Fire button touch events
+            fireBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                mobileState.firePressed = true;
+            }, { passive: false });
+
+            fireBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                mobileState.firePressed = false;
+            }, { passive: false });
+
+            fireBtn.addEventListener('touchcancel', (e) => {
+                mobileState.firePressed = false;
+            });
+
+            // Also handle mouse for testing on desktop
+            fireBtn.addEventListener('mousedown', () => {
+                mobileState.firePressed = true;
+            });
+
+            fireBtn.addEventListener('mouseup', () => {
+                mobileState.firePressed = false;
+            });
+
+            fireBtn.addEventListener('mouseleave', () => {
+                mobileState.firePressed = false;
+            });
+
+            // Device orientation handler
+            function handleOrientation(event) {
+                if (!mobileState.hasPermission) return;
+
+                // beta: front-to-back tilt (-180 to 180), gamma: left-to-right tilt (-90 to 90)
+                let beta = event.beta;   // Front/back tilt
+                let gamma = event.gamma; // Left/right tilt
+
+                // Calibrate on first valid reading
+                if (!mobileState.calibrated && beta !== null && gamma !== null) {
+                    mobileState.baselineBeta = beta;
+                    mobileState.baselineGamma = gamma;
+                    mobileState.calibrated = true;
+                }
+
+                if (mobileState.calibrated) {
+                    // Calculate tilt relative to baseline
+                    // For landscape mode: gamma controls roll, beta controls pitch
+                    let relativeBeta = beta - mobileState.baselineBeta;
+                    let relativeGamma = gamma - mobileState.baselineGamma;
+
+                    // Apply deadzone
+                    if (Math.abs(relativeBeta) < CONFIG.MOBILE_TILT_DEADZONE) relativeBeta = 0;
+                    if (Math.abs(relativeGamma) < CONFIG.MOBILE_TILT_DEADZONE) relativeGamma = 0;
+
+                    // Clamp to max tilt
+                    relativeBeta = Math.max(-CONFIG.MOBILE_MAX_TILT, Math.min(CONFIG.MOBILE_MAX_TILT, relativeBeta));
+                    relativeGamma = Math.max(-CONFIG.MOBILE_MAX_TILT, Math.min(CONFIG.MOBILE_MAX_TILT, relativeGamma));
+
+                    // Normalize to -1 to 1 range
+                    mobileState.tiltY = relativeBeta / CONFIG.MOBILE_MAX_TILT;   // Pitch
+                    mobileState.tiltX = relativeGamma / CONFIG.MOBILE_MAX_TILT;  // Roll
+
+                    // Update debug indicator (optional)
+                    const indicator = document.getElementById('tilt-indicator');
+                    if (indicator) {
+                        indicator.textContent = `Pitch: ${mobileState.tiltY.toFixed(2)} | Roll: ${mobileState.tiltX.toFixed(2)}`;
+                    }
+                }
+            }
+
+            // Add orientation listener
+            window.addEventListener('deviceorientation', handleOrientation);
+
+            // Prevent default touch behaviors on canvas
+            canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+            canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+        }
+
+        async function requestOrientationPermission() {
+            // iOS 13+ requires explicit permission for device orientation
+            if (typeof DeviceOrientationEvent !== 'undefined' &&
+                typeof DeviceOrientationEvent.requestPermission === 'function') {
+                try {
+                    const permission = await DeviceOrientationEvent.requestPermission();
+                    mobileState.hasPermission = (permission === 'granted');
+                    return mobileState.hasPermission;
+                } catch (err) {
+                    console.error('Orientation permission error:', err);
+                    mobileState.hasPermission = false;
+                    return false;
+                }
+            } else {
+                // Non-iOS or older browsers don't need permission
+                mobileState.hasPermission = true;
+                return true;
+            }
+        }
+
+        function calibrateTilt() {
+            // Reset calibration to current position
+            mobileState.calibrated = false;
         }
 
         // ==================== GAME CONTROL ====================
         async function startGame() {
             document.getElementById('start-screen').style.display = 'none';
             await audioManager.init();
-            canvas.requestPointerLock();
+
+            if (isMobile) {
+                // Request orientation permission for iOS
+                await requestOrientationPermission();
+                // Calibrate tilt to current device position
+                calibrateTilt();
+                // Show fire button
+                document.getElementById('mobile-fire-btn').style.display = 'flex';
+            } else {
+                canvas.requestPointerLock();
+            }
+
             gameState.isRunning = true;
             gameState.isPaused = false;
         }
@@ -2423,7 +2769,7 @@
                 updatePlayer(deltaTime);
 
                 // Shooting
-                if (mouseDown || keys.Space) {
+                if (mouseDown || keys.Space || mobileState.firePressed) {
                     playerShoot();
                 }
 
