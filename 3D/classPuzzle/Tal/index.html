@@ -634,10 +634,10 @@
             AA_START_DELAY: 5,           // Seconds before cannons start firing
 
             // Environment
-            WORLD_SIZE: 800,
-            CLOUD_COUNT: 30,
-            TREE_COUNT: 200,
-            TERRAIN_RESOLUTION: 150,
+            WORLD_SIZE: 1600,
+            CLOUD_COUNT: 60,
+            TREE_COUNT: 500,
+            TERRAIN_RESOLUTION: 200,
 
             // Audio
             MASTER_VOLUME: 0.6,
@@ -1359,7 +1359,7 @@
             }
 
             // Add grass patches for ground cover
-            for (let i = 0; i < 150; i++) {
+            for (let i = 0; i < 400; i++) {
                 const grass = createGrassPatch();
                 let x, z;
                 do {
@@ -1372,7 +1372,7 @@
             }
 
             // Add wildflowers for color
-            for (let i = 0; i < 80; i++) {
+            for (let i = 0; i < 200; i++) {
                 const flowers = createFlowerCluster();
                 let x, z;
                 do {
@@ -1385,7 +1385,7 @@
             }
 
             // Add scattered rocks
-            for (let i = 0; i < 40; i++) {
+            for (let i = 0; i < 100; i++) {
                 const rock = createRock();
                 let x, z;
                 do {
