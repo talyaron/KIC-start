@@ -1345,6 +1345,12 @@
             // Create railroad tracks and trains
             createRailroads();
 
+            // Create houses and buildings
+            createHouses();
+
+            // Create ranch
+            createRanch();
+
             // Trees (avoid roads and tracks)
             for (let i = 0; i < CONFIG.TREE_COUNT; i++) {
                 const tree = createTree();
@@ -1406,6 +1412,738 @@
             if (Math.abs(z - 200) < 12 && x > -300 && x < 300) return true;  // Secondary road
             if (isInRiver(x, z)) return true;  // Rivers
             return false;
+        }
+
+        // ==================== HOUSES & BUILDINGS ====================
+        function createHouses() {
+            // Place houses along roads but set back from them
+            const housePositions = [
+                { x: 50, z: 80, rot: 0 },
+                { x: -60, z: 120, rot: Math.PI },
+                { x: 80, z: -150, rot: 0 },
+                { x: -90, z: -200, rot: Math.PI },
+                { x: 150, z: 50, rot: -Math.PI/2 },
+                { x: -180, z: 60, rot: Math.PI/2 },
+                { x: 250, z: 220, rot: Math.PI/4 },
+                { x: -300, z: -180, rot: -Math.PI/4 },
+                { x: 400, z: 100, rot: 0 },
+                { x: -350, z: 300, rot: Math.PI },
+                { x: 200, z: -400, rot: Math.PI/2 },
+                { x: -450, z: -350, rot: -Math.PI/2 },
+            ];
+
+            housePositions.forEach(pos => {
+                const houseType = Math.random();
+                let house;
+                if (houseType < 0.4) {
+                    house = createFarmhouse();
+                } else if (houseType < 0.7) {
+                    house = createCottage();
+                } else {
+                    house = createModernHouse();
+                }
+                const y = getTerrainHeight(pos.x, pos.z);
+                house.position.set(pos.x, y, pos.z);
+                house.rotation.y = pos.rot;
+                scene.add(house);
+            });
+        }
+
+        function createFarmhouse() {
+            const group = new THREE.Group();
+
+            // Main house body
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0xf5f5dc, roughness: 0.9 });
+            const bodyGeo = new THREE.BoxGeometry(12, 8, 10);
+            const body = new THREE.Mesh(bodyGeo, wallMat);
+            body.position.y = 4;
+            body.castShadow = true;
+            body.receiveShadow = true;
+            group.add(body);
+
+            // Pitched roof
+            const roofMat = new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.8 });
+            const roofShape = new THREE.Shape();
+            roofShape.moveTo(-7, 0);
+            roofShape.lineTo(0, 5);
+            roofShape.lineTo(7, 0);
+            roofShape.lineTo(-7, 0);
+            const roofGeo = new THREE.ExtrudeGeometry(roofShape, { depth: 11, bevelEnabled: false });
+            const roof = new THREE.Mesh(roofGeo, roofMat);
+            roof.rotation.x = -Math.PI / 2;
+            roof.position.set(0, 8, -5.5);
+            roof.castShadow = true;
+            group.add(roof);
+
+            // Chimney
+            const chimneyMat = new THREE.MeshStandardMaterial({ color: 0x8b0000 });
+            const chimneyGeo = new THREE.BoxGeometry(1.5, 4, 1.5);
+            const chimney = new THREE.Mesh(chimneyGeo, chimneyMat);
+            chimney.position.set(4, 12, 0);
+            chimney.castShadow = true;
+            group.add(chimney);
+
+            // Door
+            const doorMat = new THREE.MeshStandardMaterial({ color: 0x4a3728 });
+            const doorGeo = new THREE.BoxGeometry(2, 4, 0.2);
+            const door = new THREE.Mesh(doorGeo, doorMat);
+            door.position.set(0, 2, 5.1);
+            group.add(door);
+
+            // Windows
+            const windowMat = new THREE.MeshStandardMaterial({
+                color: 0x87ceeb,
+                transparent: true,
+                opacity: 0.6,
+                emissive: 0xffffaa,
+                emissiveIntensity: 0.1
+            });
+            const windowPositions = [
+                { x: -4, y: 5, z: 5.1 },
+                { x: 4, y: 5, z: 5.1 },
+                { x: -4, y: 5, z: -5.1 },
+                { x: 4, y: 5, z: -5.1 },
+            ];
+            windowPositions.forEach(pos => {
+                const winGeo = new THREE.BoxGeometry(2, 2, 0.2);
+                const win = new THREE.Mesh(winGeo, windowMat);
+                win.position.set(pos.x, pos.y, pos.z);
+                group.add(win);
+
+                // Window frame
+                const frameMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+                const frameGeo = new THREE.BoxGeometry(2.2, 0.15, 0.3);
+                const frameTop = new THREE.Mesh(frameGeo, frameMat);
+                frameTop.position.set(pos.x, pos.y + 1, pos.z);
+                group.add(frameTop);
+            });
+
+            // Porch
+            const porchMat = new THREE.MeshStandardMaterial({ color: 0x8b7355 });
+            const porchGeo = new THREE.BoxGeometry(8, 0.3, 3);
+            const porch = new THREE.Mesh(porchGeo, porchMat);
+            porch.position.set(0, 0.15, 6.5);
+            porch.receiveShadow = true;
+            group.add(porch);
+
+            // Porch posts
+            for (let x = -3; x <= 3; x += 6) {
+                const postGeo = new THREE.CylinderGeometry(0.15, 0.15, 3, 8);
+                const post = new THREE.Mesh(postGeo, new THREE.MeshStandardMaterial({ color: 0xffffff }));
+                post.position.set(x, 1.5, 7.5);
+                post.castShadow = true;
+                group.add(post);
+            }
+
+            // Porch roof
+            const porchRoofGeo = new THREE.BoxGeometry(8.5, 0.2, 3.5);
+            const porchRoof = new THREE.Mesh(porchRoofGeo, roofMat);
+            porchRoof.position.set(0, 3, 6.5);
+            porchRoof.castShadow = true;
+            group.add(porchRoof);
+
+            return group;
+        }
+
+        function createCottage() {
+            const group = new THREE.Group();
+
+            // Stone/brick walls
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0xa0522d, roughness: 0.95 });
+            const bodyGeo = new THREE.BoxGeometry(8, 6, 8);
+            const body = new THREE.Mesh(bodyGeo, wallMat);
+            body.position.y = 3;
+            body.castShadow = true;
+            body.receiveShadow = true;
+            group.add(body);
+
+            // Thatched roof look
+            const roofMat = new THREE.MeshStandardMaterial({ color: 0x8b7355, roughness: 1 });
+            const roofGeo = new THREE.ConeGeometry(7, 5, 4);
+            const roof = new THREE.Mesh(roofGeo, roofMat);
+            roof.position.y = 8.5;
+            roof.rotation.y = Math.PI / 4;
+            roof.castShadow = true;
+            group.add(roof);
+
+            // Chimney
+            const chimneyMat = new THREE.MeshStandardMaterial({ color: 0x696969 });
+            const chimneyGeo = new THREE.BoxGeometry(1.2, 3, 1.2);
+            const chimney = new THREE.Mesh(chimneyGeo, chimneyMat);
+            chimney.position.set(2, 9, 2);
+            chimney.castShadow = true;
+            group.add(chimney);
+
+            // Round door
+            const doorMat = new THREE.MeshStandardMaterial({ color: 0x228b22 });
+            const doorGeo = new THREE.CircleGeometry(1.2, 16);
+            const door = new THREE.Mesh(doorGeo, doorMat);
+            door.position.set(0, 1.5, 4.1);
+            group.add(door);
+
+            // Windows
+            const windowMat = new THREE.MeshStandardMaterial({
+                color: 0xfffacd,
+                emissive: 0xffaa00,
+                emissiveIntensity: 0.15
+            });
+            for (let side = -1; side <= 1; side += 2) {
+                const winGeo = new THREE.CircleGeometry(0.8, 12);
+                const win = new THREE.Mesh(winGeo, windowMat);
+                win.position.set(side * 2.5, 4, 4.1);
+                group.add(win);
+            }
+
+            // Flower boxes
+            const boxMat = new THREE.MeshStandardMaterial({ color: 0x4a3728 });
+            for (let side = -1; side <= 1; side += 2) {
+                const boxGeo = new THREE.BoxGeometry(2, 0.5, 0.5);
+                const flowerBox = new THREE.Mesh(boxGeo, boxMat);
+                flowerBox.position.set(side * 2.5, 3, 4.3);
+                group.add(flowerBox);
+
+                // Flowers in box
+                for (let f = -0.6; f <= 0.6; f += 0.4) {
+                    const flowerGeo = new THREE.SphereGeometry(0.2, 6, 4);
+                    const flowerMat = new THREE.MeshStandardMaterial({
+                        color: [0xff69b4, 0xff0000, 0xffff00][Math.floor(Math.random() * 3)]
+                    });
+                    const flower = new THREE.Mesh(flowerGeo, flowerMat);
+                    flower.position.set(side * 2.5 + f, 3.5, 4.4);
+                    group.add(flower);
+                }
+            }
+
+            return group;
+        }
+
+        function createModernHouse() {
+            const group = new THREE.Group();
+
+            // Main structure - white walls
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0xfafafa, roughness: 0.3 });
+            const bodyGeo = new THREE.BoxGeometry(14, 6, 10);
+            const body = new THREE.Mesh(bodyGeo, wallMat);
+            body.position.y = 3;
+            body.castShadow = true;
+            body.receiveShadow = true;
+            group.add(body);
+
+            // Flat roof with slight overhang
+            const roofMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.5 });
+            const roofGeo = new THREE.BoxGeometry(15, 0.5, 11);
+            const roof = new THREE.Mesh(roofGeo, roofMat);
+            roof.position.y = 6.25;
+            roof.castShadow = true;
+            group.add(roof);
+
+            // Second floor section
+            const upperGeo = new THREE.BoxGeometry(8, 4, 8);
+            const upper = new THREE.Mesh(upperGeo, wallMat);
+            upper.position.set(-2, 8, 0);
+            upper.castShadow = true;
+            group.add(upper);
+
+            const upperRoofGeo = new THREE.BoxGeometry(9, 0.4, 9);
+            const upperRoof = new THREE.Mesh(upperRoofGeo, roofMat);
+            upperRoof.position.set(-2, 10.2, 0);
+            upperRoof.castShadow = true;
+            group.add(upperRoof);
+
+            // Large windows
+            const windowMat = new THREE.MeshStandardMaterial({
+                color: 0x87ceeb,
+                transparent: true,
+                opacity: 0.4,
+                metalness: 0.5
+            });
+
+            // Front large window
+            const largeWinGeo = new THREE.BoxGeometry(6, 4, 0.1);
+            const largeWin = new THREE.Mesh(largeWinGeo, windowMat);
+            largeWin.position.set(3, 3, 5.05);
+            group.add(largeWin);
+
+            // Door - glass
+            const doorGeo = new THREE.BoxGeometry(2.5, 5, 0.1);
+            const door = new THREE.Mesh(doorGeo, windowMat);
+            door.position.set(-3, 2.5, 5.05);
+            group.add(door);
+
+            // Garage door
+            const garageMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
+            const garageGeo = new THREE.BoxGeometry(5, 4, 0.2);
+            const garage = new THREE.Mesh(garageGeo, garageMat);
+            garage.position.set(4, 2, -5.1);
+            group.add(garage);
+
+            // Driveway
+            const drivewayMat = new THREE.MeshStandardMaterial({ color: 0x555555 });
+            const drivewayGeo = new THREE.PlaneGeometry(6, 10);
+            const driveway = new THREE.Mesh(drivewayGeo, drivewayMat);
+            driveway.rotation.x = -Math.PI / 2;
+            driveway.position.set(4, 0.1, -10);
+            group.add(driveway);
+
+            return group;
+        }
+
+        // ==================== RANCH ====================
+        function createRanch() {
+            const ranchX = 300;
+            const ranchZ = -300;
+            const ranchY = getTerrainHeight(ranchX, ranchZ);
+
+            // Create barn
+            const barn = createBarn();
+            barn.position.set(ranchX, ranchY, ranchZ);
+            scene.add(barn);
+
+            // Create silo
+            const silo = createSilo();
+            silo.position.set(ranchX + 25, getTerrainHeight(ranchX + 25, ranchZ - 10), ranchZ - 10);
+            scene.add(silo);
+
+            // Create fenced area
+            createFences(ranchX - 40, ranchZ + 20, 80, 60);
+
+            // Create windmill
+            const windmill = createWindmill();
+            windmill.position.set(ranchX - 50, getTerrainHeight(ranchX - 50, ranchZ - 40), ranchZ - 40);
+            scene.add(windmill);
+
+            // Add farm animals
+            for (let i = 0; i < 8; i++) {
+                const animal = Math.random() > 0.5 ? createCow() : createSheep();
+                const ax = ranchX - 40 + Math.random() * 70;
+                const az = ranchZ + 25 + Math.random() * 50;
+                animal.position.set(ax, getTerrainHeight(ax, az), az);
+                animal.rotation.y = Math.random() * Math.PI * 2;
+                scene.add(animal);
+            }
+
+            // Add chickens near barn
+            for (let i = 0; i < 5; i++) {
+                const chicken = createChicken();
+                const cx = ranchX + Math.random() * 20 - 10;
+                const cz = ranchZ + Math.random() * 20 - 10;
+                chicken.position.set(cx, getTerrainHeight(cx, cz), cz);
+                chicken.rotation.y = Math.random() * Math.PI * 2;
+                scene.add(chicken);
+            }
+
+            // Hay bales
+            for (let i = 0; i < 6; i++) {
+                const hay = createHayBale();
+                const hx = ranchX + 15 + (i % 3) * 4;
+                const hz = ranchZ + 15 + Math.floor(i / 3) * 4;
+                hay.position.set(hx, getTerrainHeight(hx, hz), hz);
+                hay.rotation.y = Math.random() * 0.3;
+                scene.add(hay);
+            }
+        }
+
+        function createBarn() {
+            const group = new THREE.Group();
+
+            // Main barn body - red
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0xb22222, roughness: 0.9 });
+            const bodyGeo = new THREE.BoxGeometry(20, 12, 25);
+            const body = new THREE.Mesh(bodyGeo, wallMat);
+            body.position.y = 6;
+            body.castShadow = true;
+            body.receiveShadow = true;
+            group.add(body);
+
+            // Gambrel roof (barn style)
+            const roofMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.8 });
+
+            // Lower roof sections
+            for (let side = -1; side <= 1; side += 2) {
+                const lowerRoofGeo = new THREE.BoxGeometry(8, 0.5, 26);
+                const lowerRoof = new THREE.Mesh(lowerRoofGeo, roofMat);
+                lowerRoof.position.set(side * 7, 14, 0);
+                lowerRoof.rotation.z = side * 0.5;
+                lowerRoof.castShadow = true;
+                group.add(lowerRoof);
+            }
+
+            // Upper roof peak
+            const upperRoofShape = new THREE.Shape();
+            upperRoofShape.moveTo(-5, 0);
+            upperRoofShape.lineTo(0, 4);
+            upperRoofShape.lineTo(5, 0);
+            const upperRoofGeo = new THREE.ExtrudeGeometry(upperRoofShape, { depth: 26, bevelEnabled: false });
+            const upperRoof = new THREE.Mesh(upperRoofGeo, roofMat);
+            upperRoof.rotation.x = -Math.PI / 2;
+            upperRoof.position.set(0, 14.5, -13);
+            upperRoof.castShadow = true;
+            group.add(upperRoof);
+
+            // Large barn doors
+            const doorMat = new THREE.MeshStandardMaterial({ color: 0x8b0000 });
+            for (let side = -1; side <= 1; side += 2) {
+                const doorGeo = new THREE.BoxGeometry(4, 8, 0.3);
+                const door = new THREE.Mesh(doorGeo, doorMat);
+                door.position.set(side * 3, 4, 12.65);
+                group.add(door);
+
+                // Door cross beams (X pattern)
+                const beamMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+                const beam1Geo = new THREE.BoxGeometry(0.3, 10, 0.4);
+                const beam1 = new THREE.Mesh(beam1Geo, beamMat);
+                beam1.position.set(side * 3, 4, 12.8);
+                beam1.rotation.z = 0.6 * side;
+                group.add(beam1);
+
+                const beam2 = new THREE.Mesh(beam1Geo, beamMat);
+                beam2.position.set(side * 3, 4, 12.8);
+                beam2.rotation.z = -0.6 * side;
+                group.add(beam2);
+            }
+
+            // White trim
+            const trimMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+
+            // Window in loft
+            const loftWinGeo = new THREE.CircleGeometry(2, 6);
+            const loftWin = new THREE.Mesh(loftWinGeo, new THREE.MeshStandardMaterial({
+                color: 0x4a4a4a,
+                transparent: true,
+                opacity: 0.7
+            }));
+            loftWin.position.set(0, 10, 12.55);
+            group.add(loftWin);
+
+            // Window frame
+            const frameGeo = new THREE.TorusGeometry(2.2, 0.2, 6, 6);
+            const frame = new THREE.Mesh(frameGeo, trimMat);
+            frame.position.set(0, 10, 12.6);
+            group.add(frame);
+
+            // Side windows
+            for (let z = -8; z <= 8; z += 8) {
+                for (let side = -1; side <= 1; side += 2) {
+                    const sideWinGeo = new THREE.BoxGeometry(0.2, 2, 1.5);
+                    const sideWin = new THREE.Mesh(sideWinGeo, new THREE.MeshStandardMaterial({
+                        color: 0x87ceeb,
+                        transparent: true,
+                        opacity: 0.5
+                    }));
+                    sideWin.position.set(side * 10.1, 5, z);
+                    group.add(sideWin);
+                }
+            }
+
+            return group;
+        }
+
+        function createSilo() {
+            const group = new THREE.Group();
+
+            // Main cylinder
+            const siloMat = new THREE.MeshStandardMaterial({ color: 0xc0c0c0, roughness: 0.6, metalness: 0.3 });
+            const siloGeo = new THREE.CylinderGeometry(4, 4, 20, 16);
+            const silo = new THREE.Mesh(siloGeo, siloMat);
+            silo.position.y = 10;
+            silo.castShadow = true;
+            group.add(silo);
+
+            // Dome top
+            const domeGeo = new THREE.SphereGeometry(4, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+            const dome = new THREE.Mesh(domeGeo, siloMat);
+            dome.position.y = 20;
+            dome.castShadow = true;
+            group.add(dome);
+
+            // Bands
+            const bandMat = new THREE.MeshStandardMaterial({ color: 0x888888 });
+            for (let y = 3; y < 20; y += 4) {
+                const bandGeo = new THREE.TorusGeometry(4.1, 0.2, 8, 16);
+                const band = new THREE.Mesh(bandGeo, bandMat);
+                band.position.y = y;
+                band.rotation.x = Math.PI / 2;
+                group.add(band);
+            }
+
+            return group;
+        }
+
+        function createFences(x, z, width, depth) {
+            const fenceMat = new THREE.MeshStandardMaterial({ color: 0x8b7355, roughness: 0.9 });
+            const postMat = new THREE.MeshStandardMaterial({ color: 0x5d4037 });
+
+            // Create fence along perimeter
+            const createFenceSection = (startX, startZ, endX, endZ) => {
+                const dx = endX - startX;
+                const dz = endZ - startZ;
+                const length = Math.sqrt(dx * dx + dz * dz);
+                const angle = Math.atan2(dx, dz);
+                const segments = Math.floor(length / 8);
+
+                for (let i = 0; i <= segments; i++) {
+                    const t = i / segments;
+                    const px = startX + dx * t;
+                    const pz = startZ + dz * t;
+                    const py = getTerrainHeight(px, pz);
+
+                    // Post
+                    const postGeo = new THREE.CylinderGeometry(0.15, 0.2, 3, 6);
+                    const post = new THREE.Mesh(postGeo, postMat);
+                    post.position.set(px, py + 1.5, pz);
+                    post.castShadow = true;
+                    scene.add(post);
+
+                    // Rails between posts
+                    if (i < segments) {
+                        const nextT = (i + 1) / segments;
+                        const nx = startX + dx * nextT;
+                        const nz = startZ + dz * nextT;
+                        const railLen = 8;
+
+                        for (let rail = 0; rail < 2; rail++) {
+                            const railGeo = new THREE.BoxGeometry(0.1, 0.15, railLen);
+                            const railMesh = new THREE.Mesh(railGeo, fenceMat);
+                            railMesh.position.set((px + nx) / 2, py + 1 + rail * 0.8, (pz + nz) / 2);
+                            railMesh.rotation.y = angle;
+                            scene.add(railMesh);
+                        }
+                    }
+                }
+            };
+
+            // Four sides
+            createFenceSection(x, z, x + width, z);
+            createFenceSection(x + width, z, x + width, z + depth);
+            createFenceSection(x + width, z + depth, x, z + depth);
+            createFenceSection(x, z + depth, x, z);
+        }
+
+        function createWindmill() {
+            const group = new THREE.Group();
+
+            // Tower
+            const towerMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.4 });
+            const towerGeo = new THREE.CylinderGeometry(0.8, 1.5, 15, 8);
+            const tower = new THREE.Mesh(towerGeo, towerMat);
+            tower.position.y = 7.5;
+            tower.castShadow = true;
+            group.add(tower);
+
+            // Head/nacelle
+            const headGeo = new THREE.BoxGeometry(2, 2, 3);
+            const head = new THREE.Mesh(headGeo, towerMat);
+            head.position.y = 15;
+            head.castShadow = true;
+            group.add(head);
+
+            // Blades
+            const bladeMat = new THREE.MeshStandardMaterial({ color: 0xcccccc });
+            const bladeGroup = new THREE.Group();
+
+            for (let i = 0; i < 4; i++) {
+                const bladeGeo = new THREE.BoxGeometry(0.5, 8, 0.1);
+                const blade = new THREE.Mesh(bladeGeo, bladeMat);
+                blade.position.y = 4;
+                blade.rotation.z = (i * Math.PI) / 2;
+                const bladePivot = new THREE.Group();
+                bladePivot.add(blade);
+                bladePivot.rotation.z = (i * Math.PI) / 2;
+                bladeGroup.add(bladePivot);
+            }
+            bladeGroup.position.set(0, 15, 1.6);
+            group.add(bladeGroup);
+
+            // Store reference for animation
+            group.userData.blades = bladeGroup;
+
+            // Tail vane
+            const vaneMat = new THREE.MeshStandardMaterial({ color: 0xcc0000 });
+            const vaneGeo = new THREE.BoxGeometry(0.1, 3, 4);
+            const vane = new THREE.Mesh(vaneGeo, vaneMat);
+            vane.position.set(0, 16, -3);
+            group.add(vane);
+
+            return group;
+        }
+
+        function createCow() {
+            const group = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5 });
+            const spotMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+
+            // Body
+            const bodyGeo = new THREE.BoxGeometry(2.5, 1.8, 4);
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 1.8;
+            body.castShadow = true;
+            group.add(body);
+
+            // Spots
+            for (let i = 0; i < 4; i++) {
+                const spotGeo = new THREE.SphereGeometry(0.4 + Math.random() * 0.3, 6, 4);
+                const spot = new THREE.Mesh(spotGeo, spotMat);
+                spot.position.set(
+                    (Math.random() - 0.5) * 2,
+                    1.8 + (Math.random() - 0.5) * 0.8,
+                    (Math.random() - 0.5) * 3
+                );
+                spot.scale.y = 0.3;
+                group.add(spot);
+            }
+
+            // Head
+            const headGeo = new THREE.BoxGeometry(1.2, 1.2, 1.5);
+            const head = new THREE.Mesh(headGeo, bodyMat);
+            head.position.set(0, 2.2, 2.5);
+            head.castShadow = true;
+            group.add(head);
+
+            // Ears
+            for (let side = -1; side <= 1; side += 2) {
+                const earGeo = new THREE.BoxGeometry(0.6, 0.3, 0.2);
+                const ear = new THREE.Mesh(earGeo, new THREE.MeshStandardMaterial({ color: 0xffcccc }));
+                ear.position.set(side * 0.8, 2.7, 2.3);
+                group.add(ear);
+            }
+
+            // Legs
+            const legMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5 });
+            const legPositions = [
+                { x: -0.8, z: -1.3 }, { x: 0.8, z: -1.3 },
+                { x: -0.8, z: 1.3 }, { x: 0.8, z: 1.3 }
+            ];
+            legPositions.forEach(pos => {
+                const legGeo = new THREE.CylinderGeometry(0.2, 0.2, 1.8, 6);
+                const leg = new THREE.Mesh(legGeo, legMat);
+                leg.position.set(pos.x, 0.9, pos.z);
+                leg.castShadow = true;
+                group.add(leg);
+            });
+
+            // Udder
+            const udderGeo = new THREE.SphereGeometry(0.4, 8, 6);
+            const udder = new THREE.Mesh(udderGeo, new THREE.MeshStandardMaterial({ color: 0xffcccc }));
+            udder.position.set(0, 1.2, -0.5);
+            udder.scale.y = 0.7;
+            group.add(udder);
+
+            group.scale.set(0.8, 0.8, 0.8);
+            return group;
+        }
+
+        function createSheep() {
+            const group = new THREE.Group();
+            const woolMat = new THREE.MeshStandardMaterial({ color: 0xfffef0, roughness: 1 });
+            const faceMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a });
+
+            // Fluffy body (multiple spheres)
+            for (let i = 0; i < 8; i++) {
+                const fluffGeo = new THREE.SphereGeometry(0.5 + Math.random() * 0.3, 8, 6);
+                const fluff = new THREE.Mesh(fluffGeo, woolMat);
+                fluff.position.set(
+                    (Math.random() - 0.5) * 1.2,
+                    1.2 + Math.random() * 0.4,
+                    (Math.random() - 0.5) * 1.8
+                );
+                fluff.castShadow = true;
+                group.add(fluff);
+            }
+
+            // Head
+            const headGeo = new THREE.SphereGeometry(0.5, 8, 6);
+            const head = new THREE.Mesh(headGeo, faceMat);
+            head.position.set(0, 1.4, 1.3);
+            head.scale.set(0.8, 1, 1.2);
+            head.castShadow = true;
+            group.add(head);
+
+            // Ears
+            for (let side = -1; side <= 1; side += 2) {
+                const earGeo = new THREE.SphereGeometry(0.2, 6, 4);
+                const ear = new THREE.Mesh(earGeo, faceMat);
+                ear.position.set(side * 0.5, 1.6, 1.1);
+                ear.scale.set(1, 0.5, 0.3);
+                group.add(ear);
+            }
+
+            // Legs
+            const legPositions = [
+                { x: -0.4, z: -0.6 }, { x: 0.4, z: -0.6 },
+                { x: -0.4, z: 0.6 }, { x: 0.4, z: 0.6 }
+            ];
+            legPositions.forEach(pos => {
+                const legGeo = new THREE.CylinderGeometry(0.1, 0.12, 1, 6);
+                const leg = new THREE.Mesh(legGeo, faceMat);
+                leg.position.set(pos.x, 0.5, pos.z);
+                leg.castShadow = true;
+                group.add(leg);
+            });
+
+            group.scale.set(0.7, 0.7, 0.7);
+            return group;
+        }
+
+        function createChicken() {
+            const group = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd2691e });
+            const whiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+
+            // Body
+            const bodyGeo = new THREE.SphereGeometry(0.4, 8, 6);
+            const body = new THREE.Mesh(bodyGeo, Math.random() > 0.5 ? bodyMat : whiteMat);
+            body.position.y = 0.5;
+            body.scale.set(1, 0.9, 1.3);
+            body.castShadow = true;
+            group.add(body);
+
+            // Head
+            const headGeo = new THREE.SphereGeometry(0.2, 8, 6);
+            const head = new THREE.Mesh(headGeo, body.material);
+            head.position.set(0, 0.8, 0.4);
+            head.castShadow = true;
+            group.add(head);
+
+            // Beak
+            const beakGeo = new THREE.ConeGeometry(0.08, 0.2, 4);
+            const beak = new THREE.Mesh(beakGeo, new THREE.MeshStandardMaterial({ color: 0xffa500 }));
+            beak.position.set(0, 0.75, 0.6);
+            beak.rotation.x = Math.PI / 2;
+            group.add(beak);
+
+            // Comb
+            const combGeo = new THREE.BoxGeometry(0.05, 0.15, 0.2);
+            const comb = new THREE.Mesh(combGeo, new THREE.MeshStandardMaterial({ color: 0xff0000 }));
+            comb.position.set(0, 0.95, 0.35);
+            group.add(comb);
+
+            // Legs
+            const legMat = new THREE.MeshStandardMaterial({ color: 0xffa500 });
+            for (let side = -1; side <= 1; side += 2) {
+                const legGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.3, 4);
+                const leg = new THREE.Mesh(legGeo, legMat);
+                leg.position.set(side * 0.1, 0.15, 0);
+                group.add(leg);
+            }
+
+            group.scale.set(0.6, 0.6, 0.6);
+            return group;
+        }
+
+        function createHayBale() {
+            const group = new THREE.Group();
+            const hayMat = new THREE.MeshStandardMaterial({ color: 0xdaa520, roughness: 1 });
+
+            // Cylindrical bale
+            const baleGeo = new THREE.CylinderGeometry(1.2, 1.2, 1.5, 16);
+            const bale = new THREE.Mesh(baleGeo, hayMat);
+            bale.rotation.z = Math.PI / 2;
+            bale.position.y = 1.2;
+            bale.castShadow = true;
+            bale.receiveShadow = true;
+            group.add(bale);
+
+            return group;
         }
 
         // ==================== RIVERS ====================
@@ -1797,183 +2535,635 @@
         function createLocomotive() {
             const group = new THREE.Group();
 
-            // Body
-            const bodyMat = new THREE.MeshStandardMaterial({
-                color: 0xcc2222,
-                shininess: 60
-            });
-            const bodyGeo = new THREE.BoxGeometry(5, 6, 16);
-            const body = new THREE.Mesh(bodyGeo, bodyMat);
-            body.position.y = 4;
-            body.castShadow = true;
-            group.add(body);
+            // Materials
+            const blackMetal = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.3, metalness: 0.8 });
+            const redPaint = new THREE.MeshStandardMaterial({ color: 0xb22222, roughness: 0.4, metalness: 0.2 });
+            const goldTrim = new THREE.MeshStandardMaterial({ color: 0xdaa520, roughness: 0.2, metalness: 0.9 });
+            const brassMetal = new THREE.MeshStandardMaterial({ color: 0xcd7f32, roughness: 0.3, metalness: 0.8 });
 
-            // Cabin
-            const cabinMat = new THREE.MeshStandardMaterial({ color: 0xdd3333 });
-            const cabinGeo = new THREE.BoxGeometry(5, 4, 6);
-            const cabin = new THREE.Mesh(cabinGeo, cabinMat);
-            cabin.position.set(0, 8, -3);
-            cabin.castShadow = true;
-            group.add(cabin);
+            // Main boiler (cylindrical)
+            const boilerGeo = new THREE.CylinderGeometry(2.5, 2.5, 12, 24);
+            const boiler = new THREE.Mesh(boilerGeo, blackMetal);
+            boiler.rotation.x = Math.PI / 2;
+            boiler.position.set(0, 4.5, 2);
+            boiler.castShadow = true;
+            group.add(boiler);
 
-            // Cabin windows
-            const windowMat = new THREE.MeshStandardMaterial({
-                color: 0x88ccff,
-                shininess: 100,
-                transparent: true,
-                opacity: 0.7
-            });
-            for (let side = -1; side <= 1; side += 2) {
-                const windowGeo = new THREE.PlaneGeometry(0.1, 2, 3);
-                const window = new THREE.Mesh(windowGeo, windowMat);
-                window.position.set(side * 2.6, 8.5, -3);
-                window.rotation.y = side * Math.PI / 2;
-                group.add(window);
+            // Boiler bands (brass)
+            for (let z = -3; z <= 7; z += 2.5) {
+                const bandGeo = new THREE.TorusGeometry(2.6, 0.15, 8, 24);
+                const band = new THREE.Mesh(bandGeo, brassMetal);
+                band.position.set(0, 4.5, z);
+                group.add(band);
             }
 
-            // Smokestack
-            const stackMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
-            const stackGeo = new THREE.CylinderGeometry(0.6, 0.8, 3, 8);
-            const stack = new THREE.Mesh(stackGeo, stackMat);
-            stack.position.set(0, 9, 4);
-            stack.castShadow = true;
-            group.add(stack);
+            // Smoke box (front)
+            const smokeBoxGeo = new THREE.CylinderGeometry(2.6, 2.6, 3, 24);
+            const smokeBox = new THREE.Mesh(smokeBoxGeo, blackMetal);
+            smokeBox.rotation.x = Math.PI / 2;
+            smokeBox.position.set(0, 4.5, 9.5);
+            smokeBox.castShadow = true;
+            group.add(smokeBox);
 
-            // Headlight
-            const lightMat = new THREE.MeshStandardMaterial({
-                color: 0xffffaa,
-                emissive: 0xffffaa,
-                emissiveIntensity: 0.5
+            // Smoke box door (circular)
+            const doorGeo = new THREE.CircleGeometry(2.4, 24);
+            const doorMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5, metalness: 0.6 });
+            const door = new THREE.Mesh(doorGeo, doorMat);
+            door.position.set(0, 4.5, 11.05);
+            group.add(door);
+
+            // Door handle/hinges
+            const handleGeo = new THREE.CylinderGeometry(0.15, 0.15, 1.5, 8);
+            const handle = new THREE.Mesh(handleGeo, brassMetal);
+            handle.position.set(0, 4.5, 11.1);
+            handle.rotation.z = Math.PI / 4;
+            group.add(handle);
+
+            // Smokestack with spark arrestor
+            const stackBase = new THREE.CylinderGeometry(0.8, 1, 1.5, 16);
+            const stackBaseMesh = new THREE.Mesh(stackBase, blackMetal);
+            stackBaseMesh.position.set(0, 7.5, 7);
+            stackBaseMesh.castShadow = true;
+            group.add(stackBaseMesh);
+
+            const stackMain = new THREE.CylinderGeometry(0.6, 0.8, 3, 16);
+            const stackMainMesh = new THREE.Mesh(stackMain, blackMetal);
+            stackMainMesh.position.set(0, 9.5, 7);
+            stackMainMesh.castShadow = true;
+            group.add(stackMainMesh);
+
+            // Spark arrestor (diamond shaped top)
+            const arrestorGeo = new THREE.CylinderGeometry(1.2, 0.6, 1.5, 16);
+            const arrestor = new THREE.Mesh(arrestorGeo, blackMetal);
+            arrestor.position.set(0, 11.5, 7);
+            arrestor.castShadow = true;
+            group.add(arrestor);
+
+            // Steam dome
+            const domeGeo = new THREE.SphereGeometry(1.2, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+            const dome = new THREE.Mesh(domeGeo, brassMetal);
+            dome.position.set(0, 7, 2);
+            dome.castShadow = true;
+            group.add(dome);
+
+            // Sand dome (smaller)
+            const sandDomeGeo = new THREE.SphereGeometry(0.8, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+            const sandDome = new THREE.Mesh(sandDomeGeo, brassMetal);
+            sandDome.position.set(0, 7, -1);
+            sandDome.castShadow = true;
+            group.add(sandDome);
+
+            // Cab (engineer's compartment)
+            const cabMat = new THREE.MeshStandardMaterial({ color: 0x8b0000, roughness: 0.5 });
+            const cabGeo = new THREE.BoxGeometry(5.5, 5, 5);
+            const cab = new THREE.Mesh(cabGeo, cabMat);
+            cab.position.set(0, 5, -5);
+            cab.castShadow = true;
+            group.add(cab);
+
+            // Cab roof
+            const cabRoofGeo = new THREE.BoxGeometry(6, 0.4, 6);
+            const cabRoof = new THREE.Mesh(cabRoofGeo, blackMetal);
+            cabRoof.position.set(0, 7.7, -5);
+            cabRoof.castShadow = true;
+            group.add(cabRoof);
+
+            // Cab windows
+            const windowMat = new THREE.MeshStandardMaterial({
+                color: 0x87ceeb,
+                transparent: true,
+                opacity: 0.6,
+                metalness: 0.3
             });
-            const lightGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.3, 16);
-            const headlight = new THREE.Mesh(lightGeo, lightMat);
-            headlight.position.set(0, 5, 8.2);
-            headlight.rotation.x = Math.PI / 2;
-            group.add(headlight);
 
-            // Wheels
-            createTrainWheels(group, 4);
+            // Side windows
+            for (let side = -1; side <= 1; side += 2) {
+                const winGeo = new THREE.BoxGeometry(0.1, 2.5, 2.5);
+                const win = new THREE.Mesh(winGeo, windowMat);
+                win.position.set(side * 2.8, 5.5, -5);
+                group.add(win);
 
-            // Cow catcher
-            const catcherMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
-            const catcherGeo = new THREE.BoxGeometry(5, 1.5, 3);
-            const catcher = new THREE.Mesh(catcherGeo, catcherMat);
-            catcher.position.set(0, 1.5, 9);
-            catcher.castShadow = true;
-            group.add(catcher);
+                // Window frame
+                const frameGeo = new THREE.BoxGeometry(0.15, 2.7, 0.15);
+                for (let fz = -1; fz <= 1; fz += 2) {
+                    const frame = new THREE.Mesh(frameGeo, goldTrim);
+                    frame.position.set(side * 2.85, 5.5, -5 + fz * 1.3);
+                    group.add(frame);
+                }
+            }
+
+            // Front window
+            const frontWinGeo = new THREE.BoxGeometry(3, 2, 0.1);
+            const frontWin = new THREE.Mesh(frontWinGeo, windowMat);
+            frontWin.position.set(0, 5.5, -2.45);
+            group.add(frontWin);
+
+            // Headlight (large kerosene lamp style)
+            const headlightBase = new THREE.CylinderGeometry(0.6, 0.7, 0.5, 12);
+            const headlightBaseMesh = new THREE.Mesh(headlightBase, blackMetal);
+            headlightBaseMesh.position.set(0, 7.5, 11);
+            group.add(headlightBaseMesh);
+
+            const headlightGlass = new THREE.SphereGeometry(0.5, 12, 8);
+            const headlightMat = new THREE.MeshStandardMaterial({
+                color: 0xffffcc,
+                emissive: 0xffffaa,
+                emissiveIntensity: 0.8,
+                transparent: true,
+                opacity: 0.9
+            });
+            const headlightGlassMesh = new THREE.Mesh(headlightGlass, headlightMat);
+            headlightGlassMesh.position.set(0, 8, 11);
+            group.add(headlightGlassMesh);
+
+            // Bell
+            const bellGeo = new THREE.SphereGeometry(0.4, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+            const bell = new THREE.Mesh(bellGeo, brassMetal);
+            bell.position.set(0, 8, 4);
+            bell.rotation.x = Math.PI;
+            group.add(bell);
+
+            // Cow catcher (pilot)
+            const catcherGroup = new THREE.Group();
+            const catcherBase = new THREE.BoxGeometry(4, 0.3, 4);
+            const catcherBaseMesh = new THREE.Mesh(catcherBase, blackMetal);
+            catcherBaseMesh.position.y = 1;
+            catcherGroup.add(catcherBaseMesh);
+
+            // V-shaped bars
+            for (let i = -3; i <= 3; i++) {
+                const barGeo = new THREE.CylinderGeometry(0.08, 0.08, 3, 6);
+                const bar = new THREE.Mesh(barGeo, blackMetal);
+                bar.position.set(i * 0.4, 1.5, 1.5 - Math.abs(i) * 0.3);
+                bar.rotation.x = 0.3;
+                catcherGroup.add(bar);
+            }
+            catcherGroup.position.set(0, 0, 12);
+            group.add(catcherGroup);
+
+            // Running boards
+            for (let side = -1; side <= 1; side += 2) {
+                const boardGeo = new THREE.BoxGeometry(0.8, 0.15, 16);
+                const board = new THREE.Mesh(boardGeo, new THREE.MeshStandardMaterial({ color: 0x4a4a4a }));
+                board.position.set(side * 3, 2.5, 1);
+                group.add(board);
+            }
+
+            // Large driving wheels (rear)
+            createRealisticWheels(group, 1.8, [-4, -1], true);
+
+            // Smaller front wheels
+            createRealisticWheels(group, 1.0, [4, 7], false);
+
+            // Connecting rods
+            const rodMat = new THREE.MeshStandardMaterial({ color: 0x666666, metalness: 0.8 });
+            for (let side = -1; side <= 1; side += 2) {
+                const rodGeo = new THREE.BoxGeometry(0.15, 0.4, 8);
+                const rod = new THREE.Mesh(rodGeo, rodMat);
+                rod.position.set(side * 3.2, 1.8, 0);
+                group.add(rod);
+
+                // Piston
+                const pistonGeo = new THREE.CylinderGeometry(0.4, 0.4, 3, 12);
+                const piston = new THREE.Mesh(pistonGeo, blackMetal);
+                piston.rotation.x = Math.PI / 2;
+                piston.position.set(side * 3.2, 2, 6);
+                group.add(piston);
+            }
+
+            // Tender coupling
+            const couplerGeo = new THREE.BoxGeometry(1, 0.5, 2);
+            const coupler = new THREE.Mesh(couplerGeo, blackMetal);
+            coupler.position.set(0, 2, -8);
+            group.add(coupler);
 
             return group;
+        }
+
+        function createRealisticWheels(group, radius, zPositions, hasCrank) {
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.3, metalness: 0.7 });
+            const rimMat = new THREE.MeshStandardMaterial({ color: 0xcc0000, roughness: 0.4 });
+
+            zPositions.forEach(z => {
+                for (let side = -1; side <= 1; side += 2) {
+                    const wheelGroup = new THREE.Group();
+
+                    // Main wheel
+                    const wheelGeo = new THREE.CylinderGeometry(radius, radius, 0.4, 24);
+                    const wheel = new THREE.Mesh(wheelGeo, rimMat);
+                    wheel.rotation.z = Math.PI / 2;
+                    wheel.castShadow = true;
+                    wheelGroup.add(wheel);
+
+                    // Wheel hub
+                    const hubGeo = new THREE.CylinderGeometry(radius * 0.3, radius * 0.3, 0.5, 16);
+                    const hub = new THREE.Mesh(hubGeo, wheelMat);
+                    hub.rotation.z = Math.PI / 2;
+                    wheelGroup.add(hub);
+
+                    // Spokes
+                    for (let s = 0; s < 8; s++) {
+                        const spokeGeo = new THREE.BoxGeometry(0.08, radius * 0.65, 0.15);
+                        const spoke = new THREE.Mesh(spokeGeo, wheelMat);
+                        spoke.position.y = radius * 0.5;
+                        spoke.rotation.z = (s * Math.PI) / 4;
+                        wheelGroup.add(spoke);
+                    }
+
+                    // Counterweight for driving wheels
+                    if (hasCrank) {
+                        const counterGeo = new THREE.BoxGeometry(0.3, radius * 0.6, radius * 0.4);
+                        const counter = new THREE.Mesh(counterGeo, wheelMat);
+                        counter.position.set(0.1, -radius * 0.4, 0);
+                        wheelGroup.add(counter);
+                    }
+
+                    // Flange
+                    const flangeGeo = new THREE.TorusGeometry(radius, 0.1, 8, 24);
+                    const flange = new THREE.Mesh(flangeGeo, wheelMat);
+                    flange.rotation.y = Math.PI / 2;
+                    flange.position.x = side * 0.25;
+                    wheelGroup.add(flange);
+
+                    wheelGroup.position.set(side * 2.8, radius, z);
+                    wheelGroup.rotation.z = Math.PI / 2;
+                    group.add(wheelGroup);
+                }
+            });
         }
 
         function createCargoCar(index) {
             const group = new THREE.Group();
 
-            // Random cargo car colors
-            const carColors = [0x8b4513, 0x2e5a1c, 0x4a4a4a, 0x1e3a5f, 0x5c3317];
-            const carMat = new THREE.MeshStandardMaterial({
-                color: carColors[index % carColors.length],
-                shininess: 20
-            });
+            // Car types: boxcar, flatcar, hopper, tank
+            const carType = index % 4;
 
-            // Car body
-            const bodyGeo = new THREE.BoxGeometry(5, 5, 14);
-            const body = new THREE.Mesh(bodyGeo, carMat);
-            body.position.y = 4;
-            body.castShadow = true;
-            group.add(body);
+            const frameMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.6, metalness: 0.4 });
 
-            // Some cars have open tops with cargo
-            if (Math.random() > 0.5) {
-                const cargoColors = [0xffdd44, 0x8b4513, 0x333333];
-                const cargoMat = new THREE.MeshStandardMaterial({
-                    color: cargoColors[Math.floor(Math.random() * cargoColors.length)]
+            // Underframe (common to all)
+            const frameGeo = new THREE.BoxGeometry(5, 0.6, 14);
+            const frame = new THREE.Mesh(frameGeo, frameMat);
+            frame.position.y = 1.8;
+            frame.castShadow = true;
+            group.add(frame);
+
+            if (carType === 0) {
+                // Boxcar
+                const boxColors = [0x8b4513, 0xb22222, 0x2e5a2e, 0x4a4a8b];
+                const boxMat = new THREE.MeshStandardMaterial({
+                    color: boxColors[index % boxColors.length],
+                    roughness: 0.7
                 });
-                const cargoGeo = new THREE.BoxGeometry(4, 2, 12);
-                const cargo = new THREE.Mesh(cargoGeo, cargoMat);
-                cargo.position.y = 7.5;
-                cargo.castShadow = true;
-                group.add(cargo);
+
+                const boxGeo = new THREE.BoxGeometry(4.5, 5, 12);
+                const box = new THREE.Mesh(boxGeo, boxMat);
+                box.position.y = 4.8;
+                box.castShadow = true;
+                group.add(box);
+
+                // Roof
+                const roofGeo = new THREE.CylinderGeometry(2.5, 2.5, 12.5, 12, 1, false, 0, Math.PI);
+                const roof = new THREE.Mesh(roofGeo, frameMat);
+                roof.rotation.z = Math.PI / 2;
+                roof.rotation.y = Math.PI / 2;
+                roof.position.y = 7.3;
+                roof.castShadow = true;
+                group.add(roof);
+
+                // Sliding door
+                const doorMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.5 });
+                const doorGeo = new THREE.BoxGeometry(0.15, 3.5, 4);
+                for (let side = -1; side <= 1; side += 2) {
+                    const door = new THREE.Mesh(doorGeo, doorMat);
+                    door.position.set(side * 2.3, 4.5, 0);
+                    group.add(door);
+                }
+
+                // Company name/logo placeholder (colored stripe)
+                const stripeGeo = new THREE.BoxGeometry(4.6, 0.8, 0.1);
+                const stripeMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+                const stripe = new THREE.Mesh(stripeGeo, stripeMat);
+                stripe.position.set(0, 5.5, 6.05);
+                group.add(stripe);
+
+            } else if (carType === 1) {
+                // Flatcar with lumber
+                const flatMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.6 });
+                const flatGeo = new THREE.BoxGeometry(5, 0.4, 14);
+                const flat = new THREE.Mesh(flatGeo, flatMat);
+                flat.position.y = 2.3;
+                group.add(flat);
+
+                // Stakes
+                for (let z = -5; z <= 5; z += 5) {
+                    for (let side = -1; side <= 1; side += 2) {
+                        const stakeGeo = new THREE.BoxGeometry(0.2, 2.5, 0.2);
+                        const stake = new THREE.Mesh(stakeGeo, frameMat);
+                        stake.position.set(side * 2.3, 3.5, z);
+                        group.add(stake);
+                    }
+                }
+
+                // Lumber load
+                const lumberMat = new THREE.MeshStandardMaterial({ color: 0xdeb887, roughness: 0.9 });
+                for (let layer = 0; layer < 3; layer++) {
+                    for (let i = 0; i < 4; i++) {
+                        const logGeo = new THREE.CylinderGeometry(0.3, 0.3, 10, 8);
+                        const log = new THREE.Mesh(logGeo, lumberMat);
+                        log.rotation.x = Math.PI / 2;
+                        log.position.set(-1.2 + i * 0.8, 3 + layer * 0.7, 0);
+                        log.castShadow = true;
+                        group.add(log);
+                    }
+                }
+
+            } else if (carType === 2) {
+                // Hopper car (for coal/grain)
+                const hopperMat = new THREE.MeshStandardMaterial({ color: 0x3d3d3d, roughness: 0.5, metalness: 0.3 });
+
+                // Hopper body (trapezoidal)
+                const hopperGeo = new THREE.BoxGeometry(4.5, 4, 12);
+                const hopper = new THREE.Mesh(hopperGeo, hopperMat);
+                hopper.position.y = 4.2;
+                hopper.castShadow = true;
+                group.add(hopper);
+
+                // Sloped bottom
+                const slopeGeo = new THREE.BoxGeometry(4.5, 1.5, 12);
+                const slope = new THREE.Mesh(slopeGeo, hopperMat);
+                slope.position.y = 2.5;
+                slope.scale.x = 0.6;
+                group.add(slope);
+
+                // Coal load
+                const coalMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 1 });
+                const coalGeo = new THREE.SphereGeometry(2, 8, 6);
+                coalGeo.scale(1.8, 0.4, 2.5);
+                const coal = new THREE.Mesh(coalGeo, coalMat);
+                coal.position.y = 6.5;
+                group.add(coal);
+
+                // Ribs/bracing
+                for (let z = -4; z <= 4; z += 4) {
+                    const ribGeo = new THREE.BoxGeometry(4.7, 0.15, 0.15);
+                    const rib = new THREE.Mesh(ribGeo, frameMat);
+                    rib.position.set(0, 4, z);
+                    group.add(rib);
+                }
+
+            } else {
+                // Tank car
+                const tankMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.3, metalness: 0.5 });
+
+                // Main tank
+                const tankGeo = new THREE.CylinderGeometry(2, 2, 12, 24);
+                const tank = new THREE.Mesh(tankGeo, tankMat);
+                tank.rotation.x = Math.PI / 2;
+                tank.position.y = 4;
+                tank.castShadow = true;
+                group.add(tank);
+
+                // End caps
+                for (let z = -1; z <= 1; z += 2) {
+                    const capGeo = new THREE.SphereGeometry(2, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+                    const cap = new THREE.Mesh(capGeo, tankMat);
+                    cap.position.set(0, 4, z * 6);
+                    cap.rotation.x = z > 0 ? 0 : Math.PI;
+                    group.add(cap);
+                }
+
+                // Dome
+                const domeGeo = new THREE.CylinderGeometry(0.6, 0.6, 1.5, 12);
+                const dome = new THREE.Mesh(domeGeo, tankMat);
+                dome.position.set(0, 6.2, 0);
+                group.add(dome);
+
+                // Bands
+                const bandMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a });
+                for (let z = -4; z <= 4; z += 4) {
+                    const bandGeo = new THREE.TorusGeometry(2.1, 0.1, 8, 24);
+                    const band = new THREE.Mesh(bandGeo, bandMat);
+                    band.position.set(0, 4, z);
+                    group.add(band);
+                }
+
+                // Hazard placard
+                const placardGeo = new THREE.BoxGeometry(0.8, 0.8, 0.05);
+                const placardMat = new THREE.MeshStandardMaterial({ color: 0xff6600 });
+                const placard = new THREE.Mesh(placardGeo, placardMat);
+                placard.position.set(2.05, 4, 0);
+                placard.rotation.y = Math.PI / 2;
+                group.add(placard);
             }
 
-            // Wheels
-            createTrainWheels(group, 3);
+            // Wheels (trucks) - common to all
+            createCarWheels(group, [-4.5, 4.5]);
+
+            // Couplers
+            const couplerMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.6 });
+            for (let z = -1; z <= 1; z += 2) {
+                const couplerGeo = new THREE.BoxGeometry(0.6, 0.4, 1.5);
+                const coupler = new THREE.Mesh(couplerGeo, couplerMat);
+                coupler.position.set(0, 1.8, z * 7.5);
+                group.add(coupler);
+            }
 
             return group;
+        }
+
+        function createCarWheels(group, zPositions) {
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.4, metalness: 0.6 });
+            const truckMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.5 });
+
+            zPositions.forEach(z => {
+                // Truck frame
+                const truckGeo = new THREE.BoxGeometry(4, 0.4, 2.5);
+                const truck = new THREE.Mesh(truckGeo, truckMat);
+                truck.position.set(0, 1.2, z);
+                group.add(truck);
+
+                // Wheels
+                for (let wz = -0.8; wz <= 0.8; wz += 1.6) {
+                    for (let side = -1; side <= 1; side += 2) {
+                        const wheelGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.3, 16);
+                        const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+                        wheel.rotation.z = Math.PI / 2;
+                        wheel.position.set(side * 2.2, 0.8, z + wz);
+                        wheel.castShadow = true;
+                        group.add(wheel);
+
+                        // Flange
+                        const flangeGeo = new THREE.TorusGeometry(0.8, 0.08, 6, 16);
+                        const flange = new THREE.Mesh(flangeGeo, wheelMat);
+                        flange.rotation.y = Math.PI / 2;
+                        flange.position.set(side * 2.35, 0.8, z + wz);
+                        group.add(flange);
+                    }
+                }
+
+                // Springs
+                for (let sx = -1; sx <= 1; sx += 2) {
+                    const springGeo = new THREE.BoxGeometry(0.8, 0.3, 1.8);
+                    const spring = new THREE.Mesh(springGeo, truckMat);
+                    spring.position.set(sx * 1.2, 1.5, z);
+                    group.add(spring);
+                }
+            });
         }
 
         function createCaboose() {
             const group = new THREE.Group();
 
-            // Body
-            const bodyMat = new THREE.MeshStandardMaterial({
-                color: 0xcc4444,
-                shininess: 40
-            });
-            const bodyGeo = new THREE.BoxGeometry(5, 4, 12);
-            const body = new THREE.Mesh(bodyGeo, bodyMat);
-            body.position.y = 3.5;
+            const cabooseMat = new THREE.MeshStandardMaterial({ color: 0xcc2222, roughness: 0.5 });
+            const trimMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
+            const roofMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.4 });
+
+            // Underframe
+            const frameMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, metalness: 0.4 });
+            const frameGeo = new THREE.BoxGeometry(5, 0.5, 12);
+            const frame = new THREE.Mesh(frameGeo, frameMat);
+            frame.position.y = 1.8;
+            group.add(frame);
+
+            // Main body
+            const bodyGeo = new THREE.BoxGeometry(5, 4.5, 10);
+            const body = new THREE.Mesh(bodyGeo, cabooseMat);
+            body.position.y = 4.5;
             body.castShadow = true;
             group.add(body);
 
-            // Cupola (raised section)
-            const cupolaGeo = new THREE.BoxGeometry(3, 2, 4);
-            const cupola = new THREE.Mesh(cupolaGeo, bodyMat);
-            cupola.position.y = 6.5;
+            // Cupola (raised lookout)
+            const cupolaGeo = new THREE.BoxGeometry(3.5, 2.5, 4);
+            const cupola = new THREE.Mesh(cupolaGeo, cabooseMat);
+            cupola.position.set(0, 8, 0);
             cupola.castShadow = true;
             group.add(cupola);
 
+            // Cupola roof
+            const cupolaRoofGeo = new THREE.BoxGeometry(4, 0.3, 4.5);
+            const cupolaRoof = new THREE.Mesh(cupolaRoofGeo, roofMat);
+            cupolaRoof.position.set(0, 9.4, 0);
+            group.add(cupolaRoof);
+
+            // Main roof
+            const roofGeo = new THREE.BoxGeometry(5.5, 0.3, 11);
+            const roof = new THREE.Mesh(roofGeo, roofMat);
+            roof.position.set(0, 6.9, 0);
+            group.add(roof);
+
             // Windows
             const windowMat = new THREE.MeshStandardMaterial({
-                color: 0x88ccff,
+                color: 0x87ceeb,
                 transparent: true,
-                opacity: 0.7
+                opacity: 0.6,
+                emissive: 0xffffcc,
+                emissiveIntensity: 0.15
             });
-            for (let side = -1; side <= 1; side += 2) {
-                const windowGeo = new THREE.PlaneGeometry(0.1, 1.5, 3);
-                const window = new THREE.Mesh(windowGeo, windowMat);
-                window.position.set(side * 2.6, 3.5, 0);
-                window.rotation.y = side * Math.PI / 2;
-                group.add(window);
+
+            // Side windows (lower)
+            for (let z = -3; z <= 3; z += 3) {
+                for (let side = -1; side <= 1; side += 2) {
+                    const winGeo = new THREE.BoxGeometry(0.1, 1.8, 1.5);
+                    const win = new THREE.Mesh(winGeo, windowMat);
+                    win.position.set(side * 2.55, 5, z);
+                    group.add(win);
+
+                    // Window trim
+                    const trimGeo = new THREE.BoxGeometry(0.15, 2, 1.7);
+                    const trim = new THREE.Mesh(trimGeo, trimMat);
+                    trim.position.set(side * 2.58, 5, z);
+                    group.add(trim);
+                }
             }
 
-            // Rear platform
-            const platformMat = new THREE.MeshStandardMaterial({ color: 0x4a3728 });
-            const platformGeo = new THREE.BoxGeometry(5, 0.3, 2);
-            const platform = new THREE.Mesh(platformGeo, platformMat);
-            platform.position.set(0, 1.5, -7);
-            group.add(platform);
-
-            // Railings
-            const railMat = new THREE.MeshStandardMaterial({ color: 0x666666 });
+            // Cupola windows
             for (let side = -1; side <= 1; side += 2) {
-                const railGeo = new THREE.CylinderGeometry(0.1, 0.1, 2, 8);
-                const rail = new THREE.Mesh(railGeo, railMat);
-                rail.position.set(side * 2, 2.5, -7);
-                group.add(rail);
+                const cupWinGeo = new THREE.BoxGeometry(0.1, 1.5, 3);
+                const cupWin = new THREE.Mesh(cupWinGeo, windowMat);
+                cupWin.position.set(side * 1.8, 8, 0);
+                group.add(cupWin);
+            }
+
+            // End platforms
+            for (let z = -1; z <= 1; z += 2) {
+                // Platform floor
+                const platGeo = new THREE.BoxGeometry(5, 0.2, 2);
+                const plat = new THREE.Mesh(platGeo, new THREE.MeshStandardMaterial({ color: 0x4a3728 }));
+                plat.position.set(0, 2.2, z * 6);
+                group.add(plat);
+
+                // Railings
+                const railMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+                for (let side = -1; side <= 1; side += 2) {
+                    // Vertical posts
+                    const postGeo = new THREE.CylinderGeometry(0.08, 0.08, 2.5, 8);
+                    const post = new THREE.Mesh(postGeo, railMat);
+                    post.position.set(side * 2.2, 3.5, z * 6.5);
+                    group.add(post);
+
+                    // Horizontal rail
+                    const hRailGeo = new THREE.CylinderGeometry(0.05, 0.05, 2.5, 8);
+                    const hRail = new THREE.Mesh(hRailGeo, railMat);
+                    hRail.rotation.z = Math.PI / 2;
+                    hRail.position.set(0, 4, z * 6.8);
+                    group.add(hRail);
+                }
+
+                // Steps
+                for (let step = 0; step < 3; step++) {
+                    const stepGeo = new THREE.BoxGeometry(1.5, 0.15, 0.4);
+                    const stepMesh = new THREE.Mesh(stepGeo, frameMat);
+                    stepMesh.position.set(0, 0.5 + step * 0.6, z * (5.5 + step * 0.3));
+                    group.add(stepMesh);
+                }
+            }
+
+            // Door
+            const doorGeo = new THREE.BoxGeometry(1.8, 3.5, 0.15);
+            const doorMat = new THREE.MeshStandardMaterial({ color: 0x8b0000 });
+            for (let z = -1; z <= 1; z += 2) {
+                const door = new THREE.Mesh(doorGeo, doorMat);
+                door.position.set(0, 4, z * 5.05);
+                group.add(door);
+            }
+
+            // Smoke stack (stove pipe)
+            const pipeGeo = new THREE.CylinderGeometry(0.15, 0.15, 3, 8);
+            const pipe = new THREE.Mesh(pipeGeo, new THREE.MeshStandardMaterial({ color: 0x1a1a1a }));
+            pipe.position.set(1.5, 8.5, 2);
+            group.add(pipe);
+
+            // Marker lights
+            const markerMat = new THREE.MeshStandardMaterial({
+                color: 0xff0000,
+                emissive: 0xff0000,
+                emissiveIntensity: 0.5
+            });
+            for (let side = -1; side <= 1; side += 2) {
+                const markerGeo = new THREE.SphereGeometry(0.2, 8, 6);
+                const marker = new THREE.Mesh(markerGeo, markerMat);
+                marker.position.set(side * 2.3, 6.5, -5.1);
+                group.add(marker);
             }
 
             // Wheels
-            createTrainWheels(group, 2.5);
+            createCarWheels(group, [-3.5, 3.5]);
+
+            // Couplers
+            const couplerMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.6 });
+            for (let z = -1; z <= 1; z += 2) {
+                const couplerGeo = new THREE.BoxGeometry(0.6, 0.4, 1.5);
+                const coupler = new THREE.Mesh(couplerGeo, couplerMat);
+                coupler.position.set(0, 1.8, z * 7);
+                group.add(coupler);
+            }
 
             return group;
         }
 
         function createTrainWheels(group, spacing) {
-            const wheelMat = new THREE.MeshStandardMaterial({
-                color: 0x222222,
-                shininess: 80
-            });
-
-            for (let z = -1; z <= 1; z += 2) {
-                for (let side = -1; side <= 1; side += 2) {
-                    const wheelGeo = new THREE.CylinderGeometry(1.2, 1.2, 0.5, 16);
-                    const wheel = new THREE.Mesh(wheelGeo, wheelMat);
-                    wheel.rotation.z = Math.PI / 2;
-                    wheel.position.set(side * 2.8, 1.2, z * spacing);
-                    wheel.castShadow = true;
-                    group.add(wheel);
-                }
-            }
+            // Legacy function - kept for compatibility but uses new wheel system
+            createCarWheels(group, [-spacing, spacing]);
         }
 
         function updateTrains(deltaTime) {
