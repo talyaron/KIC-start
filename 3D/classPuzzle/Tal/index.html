@@ -336,37 +336,16 @@
             box-shadow: 0 0 50px rgba(255, 0, 0, 0.8), inset 0 0 30px rgba(255, 255, 255, 0.4);
         }
 
-        /* Rotate device overlay */
-        #rotate-device {
+        /* Mobile touch zone */
+        #touch-zone {
             display: none;
             position: fixed;
             top: 0;
             left: 0;
-            width: 100%;
+            width: 70%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.95);
-            z-index: 500;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            color: #fff;
-        }
-
-        #rotate-device .phone-icon {
-            font-size: 80px;
-            animation: rotate-phone 1.5s ease-in-out infinite;
-            margin-bottom: 20px;
-        }
-
-        #rotate-device p {
-            font-size: 24px;
-            text-align: center;
-            padding: 0 20px;
-        }
-
-        @keyframes rotate-phone {
-            0%, 100% { transform: rotate(0deg); }
-            50% { transform: rotate(90deg); }
+            z-index: 90;
+            touch-action: none;
         }
 
         /* Mobile instructions */
@@ -376,23 +355,6 @@
 
         .desktop-instructions {
             display: block;
-        }
-
-        /* Tilt indicator */
-        #tilt-indicator {
-            display: none;
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 10px 20px;
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid rgba(0, 255, 255, 0.3);
-            border-radius: 10px;
-            color: #0ff;
-            font-size: 12px;
-            z-index: 101;
-            pointer-events: none;
         }
 
         /* Mobile-specific styles */
@@ -467,13 +429,6 @@
                 font-size: 32px;
             }
         }
-
-        /* Portrait mode warning for mobile */
-        @media (max-width: 900px) and (orientation: portrait) {
-            #rotate-device {
-                display: flex !important;
-            }
-        }
     </style>
 </head>
 <body>
@@ -538,10 +493,9 @@
             <p><span>ESC</span> - Pause</p>
         </div>
         <div class="instructions mobile-instructions">
-            <p><span>Tilt Forward/Back</span> - Pitch (nose up/down)</p>
-            <p><span>Tilt Left/Right</span> - Roll (bank left/right)</p>
+            <p><span>Swipe Up/Down</span> - Pitch (nose up/down)</p>
+            <p><span>Swipe Left/Right</span> - Roll (bank left/right)</p>
             <p><span>FIRE Button</span> - Shoot</p>
-            <p>Hold device horizontally in landscape mode</p>
         </div>
         <div class="click-to-start desktop-instructions">CLICK TO START</div>
         <div class="click-to-start mobile-instructions">TAP TO START</div>
@@ -557,14 +511,8 @@
     <!-- Mobile Fire Button -->
     <button id="mobile-fire-btn">FIRE</button>
 
-    <!-- Rotate Device Overlay -->
-    <div id="rotate-device">
-        <div class="phone-icon">📱</div>
-        <p>Please rotate your device to landscape mode</p>
-    </div>
-
-    <!-- Tilt Indicator (for debugging, can be hidden) -->
-    <div id="tilt-indicator"></div>
+    <!-- Mobile Touch Zone (left side of screen for swipe controls) -->
+    <div id="touch-zone"></div>
 
     <script type="importmap">
     {
@@ -694,9 +642,8 @@
             MASTER_VOLUME: 0.6,
 
             // Mobile Controls
-            MOBILE_TILT_SENSITIVITY: 1.8,
-            MOBILE_TILT_DEADZONE: 5,      // degrees
-            MOBILE_MAX_TILT: 45           // degrees
+            MOBILE_SWIPE_SENSITIVITY: 0.008,  // How sensitive swipe is
+            MOBILE_SWIPE_DECAY: 0.92          // How fast swipe input decays
         };
 
         // ==================== MOBILE DETECTION & STATE ====================
@@ -704,13 +651,13 @@
                         || (navigator.maxTouchPoints > 0 && window.innerWidth < 1024);
 
         const mobileState = {
-            hasPermission: false,
-            tiltX: 0,        // Left/Right tilt (roll)
-            tiltY: 0,        // Forward/Back tilt (pitch)
-            baselineAlpha: null,
-            baselineBeta: null,
-            baselineGamma: null,
-            calibrated: false,
+            swipeX: 0,           // Left/Right swipe (roll) -1 to 1
+            swipeY: 0,           // Up/Down swipe (pitch) -1 to 1
+            touchStartX: 0,
+            touchStartY: 0,
+            lastTouchX: 0,
+            lastTouchY: 0,
+            isTouching: false,
             firePressed: false
         };
 
@@ -2435,10 +2382,14 @@
         // ==================== PLAYER MOVEMENT ====================
         function updatePlayer(deltaTime) {
             // Pitch control
-            if (isMobile && mobileState.hasPermission) {
-                // Mobile tilt controls
-                // tiltY > 0 means tilted forward (nose down), tiltY < 0 means tilted back (nose up)
-                gameState.pitch += mobileState.tiltY * CONFIG.MOBILE_TILT_SENSITIVITY * deltaTime;
+            if (isMobile) {
+                // Mobile swipe controls
+                // swipeY > 0 means swiped down (nose down), swipeY < 0 means swiped up (nose up)
+                gameState.pitch += mobileState.swipeY * CONFIG.PITCH_SPEED * 2;
+                // Decay swipe input when not touching
+                if (!mobileState.isTouching) {
+                    mobileState.swipeY *= CONFIG.MOBILE_SWIPE_DECAY;
+                }
             } else {
                 // Keyboard controls
                 if (keys.w || keys.ArrowUp) {
@@ -2452,10 +2403,14 @@
             gameState.pitch *= 0.98; // Damping
 
             // Roll control
-            if (isMobile && mobileState.hasPermission) {
-                // Mobile tilt controls
-                // tiltX > 0 means tilted right (roll right), tiltX < 0 means tilted left (roll left)
-                gameState.roll -= mobileState.tiltX * CONFIG.MOBILE_TILT_SENSITIVITY * deltaTime;
+            if (isMobile) {
+                // Mobile swipe controls
+                // swipeX > 0 means swiped right (roll right), swipeX < 0 means swiped left (roll left)
+                gameState.roll -= mobileState.swipeX * CONFIG.ROLL_SPEED * 2;
+                // Decay swipe input when not touching
+                if (!mobileState.isTouching) {
+                    mobileState.swipeX *= CONFIG.MOBILE_SWIPE_DECAY;
+                }
             } else {
                 // Keyboard controls
                 if (keys.a || keys.ArrowLeft) {
@@ -2598,6 +2553,7 @@
         // ==================== MOBILE INPUT ====================
         function setupMobileInput() {
             const fireBtn = document.getElementById('mobile-fire-btn');
+            const touchZone = document.getElementById('touch-zone');
 
             // Fire button touch events
             fireBtn.addEventListener('touchstart', (e) => {
@@ -2627,78 +2583,94 @@
                 mobileState.firePressed = false;
             });
 
-            // Device orientation handler
-            function handleOrientation(event) {
-                if (!mobileState.hasPermission) return;
+            // Swipe controls on touch zone (left side of screen)
+            touchZone.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                mobileState.touchStartX = touch.clientX;
+                mobileState.touchStartY = touch.clientY;
+                mobileState.lastTouchX = touch.clientX;
+                mobileState.lastTouchY = touch.clientY;
+                mobileState.isTouching = true;
+            }, { passive: false });
 
-                // beta: front-to-back tilt (-180 to 180), gamma: left-to-right tilt (-90 to 90)
-                let beta = event.beta;   // Front/back tilt
-                let gamma = event.gamma; // Left/right tilt
+            touchZone.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (!mobileState.isTouching) return;
 
-                // Calibrate on first valid reading
-                if (!mobileState.calibrated && beta !== null && gamma !== null) {
-                    mobileState.baselineBeta = beta;
-                    mobileState.baselineGamma = gamma;
-                    mobileState.calibrated = true;
-                }
+                const touch = e.touches[0];
 
-                if (mobileState.calibrated) {
-                    // Calculate tilt relative to baseline
-                    // For landscape mode: gamma controls roll, beta controls pitch
-                    let relativeBeta = beta - mobileState.baselineBeta;
-                    let relativeGamma = gamma - mobileState.baselineGamma;
+                // Calculate delta from last position
+                const deltaX = touch.clientX - mobileState.lastTouchX;
+                const deltaY = touch.clientY - mobileState.lastTouchY;
 
-                    // Apply deadzone
-                    if (Math.abs(relativeBeta) < CONFIG.MOBILE_TILT_DEADZONE) relativeBeta = 0;
-                    if (Math.abs(relativeGamma) < CONFIG.MOBILE_TILT_DEADZONE) relativeGamma = 0;
+                // Apply swipe input (accumulate)
+                mobileState.swipeX += deltaX * CONFIG.MOBILE_SWIPE_SENSITIVITY;
+                mobileState.swipeY += deltaY * CONFIG.MOBILE_SWIPE_SENSITIVITY;
 
-                    // Clamp to max tilt
-                    relativeBeta = Math.max(-CONFIG.MOBILE_MAX_TILT, Math.min(CONFIG.MOBILE_MAX_TILT, relativeBeta));
-                    relativeGamma = Math.max(-CONFIG.MOBILE_MAX_TILT, Math.min(CONFIG.MOBILE_MAX_TILT, relativeGamma));
+                // Clamp values
+                mobileState.swipeX = Math.max(-1, Math.min(1, mobileState.swipeX));
+                mobileState.swipeY = Math.max(-1, Math.min(1, mobileState.swipeY));
 
-                    // Normalize to -1 to 1 range
-                    mobileState.tiltY = relativeBeta / CONFIG.MOBILE_MAX_TILT;   // Pitch
-                    mobileState.tiltX = relativeGamma / CONFIG.MOBILE_MAX_TILT;  // Roll
+                // Update last position
+                mobileState.lastTouchX = touch.clientX;
+                mobileState.lastTouchY = touch.clientY;
+            }, { passive: false });
 
-                    // Update debug indicator (optional)
-                    const indicator = document.getElementById('tilt-indicator');
-                    if (indicator) {
-                        indicator.textContent = `Pitch: ${mobileState.tiltY.toFixed(2)} | Roll: ${mobileState.tiltX.toFixed(2)}`;
-                    }
-                }
-            }
+            touchZone.addEventListener('touchend', (e) => {
+                mobileState.isTouching = false;
+            });
 
-            // Add orientation listener
-            window.addEventListener('deviceorientation', handleOrientation);
+            touchZone.addEventListener('touchcancel', (e) => {
+                mobileState.isTouching = false;
+            });
 
-            // Prevent default touch behaviors on canvas
-            canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
-            canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
-        }
+            // Also allow swiping on canvas for full screen control
+            canvas.addEventListener('touchstart', (e) => {
+                // Don't interfere with fire button
+                if (e.target === fireBtn) return;
+                e.preventDefault();
+                const touch = e.touches[0];
+                mobileState.touchStartX = touch.clientX;
+                mobileState.touchStartY = touch.clientY;
+                mobileState.lastTouchX = touch.clientX;
+                mobileState.lastTouchY = touch.clientY;
+                mobileState.isTouching = true;
+            }, { passive: false });
 
-        async function requestOrientationPermission() {
-            // iOS 13+ requires explicit permission for device orientation
-            if (typeof DeviceOrientationEvent !== 'undefined' &&
-                typeof DeviceOrientationEvent.requestPermission === 'function') {
-                try {
-                    const permission = await DeviceOrientationEvent.requestPermission();
-                    mobileState.hasPermission = (permission === 'granted');
-                    return mobileState.hasPermission;
-                } catch (err) {
-                    console.error('Orientation permission error:', err);
-                    mobileState.hasPermission = false;
-                    return false;
-                }
-            } else {
-                // Non-iOS or older browsers don't need permission
-                mobileState.hasPermission = true;
-                return true;
-            }
-        }
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (!mobileState.isTouching) return;
 
-        function calibrateTilt() {
-            // Reset calibration to current position
-            mobileState.calibrated = false;
+                const touch = e.touches[0];
+
+                // Calculate delta from last position
+                const deltaX = touch.clientX - mobileState.lastTouchX;
+                const deltaY = touch.clientY - mobileState.lastTouchY;
+
+                // Apply swipe input (accumulate)
+                mobileState.swipeX += deltaX * CONFIG.MOBILE_SWIPE_SENSITIVITY;
+                mobileState.swipeY += deltaY * CONFIG.MOBILE_SWIPE_SENSITIVITY;
+
+                // Clamp values
+                mobileState.swipeX = Math.max(-1, Math.min(1, mobileState.swipeX));
+                mobileState.swipeY = Math.max(-1, Math.min(1, mobileState.swipeY));
+
+                // Update last position
+                mobileState.lastTouchX = touch.clientX;
+                mobileState.lastTouchY = touch.clientY;
+            }, { passive: false });
+
+            canvas.addEventListener('touchend', (e) => {
+                mobileState.isTouching = false;
+            });
+
+            canvas.addEventListener('touchcancel', (e) => {
+                mobileState.isTouching = false;
+            });
+
+            // Show touch zone on mobile
+            touchZone.style.display = 'block';
         }
 
         // ==================== GAME CONTROL ====================
@@ -2707,10 +2679,6 @@
             await audioManager.init();
 
             if (isMobile) {
-                // Request orientation permission for iOS
-                await requestOrientationPermission();
-                // Calibrate tilt to current device position
-                calibrateTilt();
                 // Show fire button
                 document.getElementById('mobile-fire-btn').style.display = 'flex';
             } else {
